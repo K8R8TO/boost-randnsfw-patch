@@ -15,7 +15,6 @@ import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITC
  * Real hooks currently included:
  * - uyu ad blocking
  * - uyu chat/Bits visibility hook
- * - 7TV + BTTV live-chat rendering
  * - login and notification compatibility fixes
  *
  * Other Kizu settings stay disabled/not advertised until their hooks are implemented.
@@ -24,7 +23,7 @@ import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITC
 val twitchEnhancementPatch = bytecodePatch(
     name = "Twitch Enhancement",
     description = "Kizu's single configurable Twitch enhancement patch. Current real hooks include " +
-        "ad blocking, 7TV/BTTV live-chat emotes, animated third-party emotes, the Bits-button " +
+        "ad blocking and the Bits-button " +
         "visibility control, and patched-app login/notification compatibility.",
 ) {
     compatibleWith(COMPATIBILITY_TWITCH)
@@ -34,6 +33,5 @@ val twitchEnhancementPatch = bytecodePatch(
         fixNotificationsPatch,
         blockAdsPatch,
         hidePromotionsPatch,
-        thirdPartyEmotesPatch,
     )
 }
