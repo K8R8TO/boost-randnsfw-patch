@@ -5,7 +5,6 @@ import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch
 import io.github.bakwudo.uyu.patches.twitch.appearance.hidePromotionsPatch
 import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch
 import io.github.bakwudo.uyu.patches.twitch.chat.showDeletedMessagesPatch
-import io.github.bakwudo.uyu.patches.twitch.player.playerSeekPatch
 import io.github.bakwudo.uyu.patches.twitch.login.fixLoginPatch
 import io.github.bakwudo.uyu.patches.twitch.notifications.fixNotificationsPatch
 import io.github.bakwudo.uyu.patches.twitch.privacy.privacyPatch
