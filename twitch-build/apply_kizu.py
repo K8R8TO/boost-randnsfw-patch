@@ -418,12 +418,19 @@ new_decode = """    private static boolean isWebp(byte[] bytes) {
                 throw new IOException("Invalid animated emote dimensions", failure);
             }
             Drawable.ConstantState state = decoded.getConstantState();
-            if (state != null) {
-                int width = Math.max(1, decoded.getIntrinsicWidth());
-                int height = Math.max(1, decoded.getIntrinsicHeight());
-                long estimate = (long) width * height * 4L * 4L;
-                return new ImageData(null, state, saturatedInt(estimate));
-            }
+            int width = Math.max(1, decoded.getIntrinsicWidth());
+            int height = Math.max(1, decoded.getIntrinsicHeight());
+            long estimate = (long) width * height * 4L * 4L + bytes.length;
+
+            // Retain the source bytes even when ConstantState is unavailable.
+            return new ImageData(
+                    null,
+                    state,
+                    bytes,
+                    true,
+                    targetDimension,
+                    saturatedInt(estimate)
+            );
         }
 
         Bitmap bitmap = decodeBitmap(bytes, targetDimension);
