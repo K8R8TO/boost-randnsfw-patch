@@ -1,4 +1,4 @@
-name: Build Twitch Uyu Settings Shell
+name: Build Kizu
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
       packages: read
 
     steps:
-      - name: Checkout temp branch
+      - name: Checkout Kizu build files
         uses: actions/checkout@v4
 
       - name: Setup Java 21
@@ -23,57 +23,115 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Checkout uyu
+      - name: Checkout uyu base
         uses: actions/checkout@v4
         with:
           repository: bakwudo/uyu
           ref: main
           path: uyu
 
-      - name: Apply custom settings shell
+      - name: Apply Kizu customizations
         shell: bash
         run: |
           set -euxo pipefail
-          cp twitch-build/Settings.java             uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/Settings.java
-          cp twitch-build/UyuSettingsFragment.java             uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/UyuSettingsFragment.java
+
+          cp twitch-build/Settings.java \
+            uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/Settings.java
+          cp twitch-build/UyuSettingsFragment.java \
+            uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/UyuSettingsFragment.java
+
+          mkdir -p uyu/patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement
+          cp twitch-build/EnhancementPatch.kt \
+            uyu/patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement/EnhancementPatch.kt
+
+          # Kizu must replace Twitch, never install beside it.
+          rm -f uyu/patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/separateapp/SeparateAppPatch.kt
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
+          # Visible in-app branding.
           p = Path("uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/SettingsPatch.java")
           s = p.read_text()
           s = s.replace('public static final String TITLE = "uyu";',
-                        'public static final String TITLE = "Morphe Twitch";')
+                        'public static final String TITLE = "Kizu";')
           p.write_text(s)
 
-          g = Path("uyu/patches/build.gradle.kts")
-          s = g.read_text()
-          if not s.startswith('version = "0.1.0-settings-shell"'):
-              s = 'version = "0.1.0-settings-shell"\n\n' + s
+          # Give Kizu its own preference namespace.
+          p = Path("uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/Setting.java")
+          s = p.read_text().replace(
+              'public static final String PREFERENCES_NAME = "uyu_settings";',
+              'public static final String PREFERENCES_NAME = "kizu_settings";'
+          )
+          p.write_text(s)
+
+          # Hide implementation patches behind the one user-facing Twitch Enhancement patch.
+          internal_patches = [
+              ("uyu/patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/ads/BlockAdsPatch.kt",
+               "blockAdsPatch"),
+              ("uyu/patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/appearance/HidePromotionsPatch.kt",
+               "hidePromotionsPatch"),
+          ]
+          for path, symbol in internal_patches:
+              p = Path(path)
+              s = p.read_text()
+              pattern = rf'@Suppress\("unused"\)\nval {symbol} = bytecodePatch\(.*?\n\) \{{\n    compatibleWith'
+              replacement = f'internal val {symbol} = bytecodePatch {{\n    compatibleWith'
+              s, count = re.subn(pattern, replacement, s, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f"Could not internalize {symbol}")
+              p.write_text(s)
+
+          # Bundle identity and version.
+          p = Path("uyu/settings.gradle.kts")
+          s = p.read_text().replace('rootProject.name = "uyu"', 'rootProject.name = "kizu"')
+          p.write_text(s)
+
+          p = Path("uyu/patches/build.gradle.kts")
+          s = p.read_text()
+          s = s.replace('group = "io.github.bakwudo.uyu"', 'group = "io.github.k8r8to.kizu"')
+          if not s.startswith('version = "0.1.0"'):
+              s = 'version = "0.1.0"\n\n' + s
+          s = s.replace('name = "uyu"', 'name = "Kizu"')
           s = s.replace(
               'description = "Patches for Twitch: channel points auto claim, Niconico-style scrolling comments and ad blocking."',
-              'description = "Custom Twitch Morphe bundle with an in-app runtime settings shell, based on uyu."'
+              'description = "Kizu enhancements for the Android Twitch app, based on uyu."'
           )
-          g.write_text(s)
+          s = s.replace('source = "git@github.com:bakwudo/uyu.git"',
+                        'source = "https://github.com/K8R8TO/boost-randnsfw-patch"')
+          s = s.replace('author = "bakwudo"', 'author = "K8R8TO"')
+          s = s.replace('contact = "https://github.com/bakwudo/uyu/issues"',
+                        'contact = "https://github.com/K8R8TO/boost-randnsfw-patch/issues"')
+          s = s.replace('website = "https://github.com/bakwudo/uyu"',
+                        'website = "https://github.com/K8R8TO/boost-randnsfw-patch"')
+          s += '''
+
+tasks.withType<org.gradle.jvm.tasks.Jar>().configureEach {
+    archiveBaseName.set("kizu")
+}
+'''
+          p.write_text(s)
           PY
 
-      - name: Build MPP
+      - name: Build Kizu MPP
         working-directory: uyu
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew :patches:buildAndroid --no-daemon --stacktrace
 
-      - name: Collect MPP
+      - name: Collect Kizu MPP
         shell: bash
         run: |
           set -euxo pipefail
           mkdir -p out
-          cp uyu/patches/build/libs/patches-*.mpp out/
-          sha256sum out/*.mpp
+          cp uyu/patches/build/libs/kizu-0.1.0.mpp out/
+          sha256sum out/kizu-0.1.0.mpp
 
-      - name: Upload MPP artifact
+      - name: Upload Kizu MPP
         uses: actions/upload-artifact@v4
         with:
-          name: twitch-uyu-settings-shell-mpp
-          path: out/*.mpp
+          name: kizu-v0.1.0-mpp
+          path: out/kizu-0.1.0.mpp
           if-no-files-found: error
