@@ -8,6 +8,18 @@ DONOR = Path("hooman")
 # Copy Kizu settings/UI.
 settings_dst = ROOT / "extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings"
 settings_dst.mkdir(parents=True, exist_ok=True)
+
+# Kizu ad blocking uses a live manifest proxy by default. Uyu's built-in client-side
+# blocker otherwise masks Twitch's server-stitched ad breaks with the black countdown overlay.
+# The proxy is based on the currently published Luminous endpoints; users can still replace it
+# through the existing proxy setting.
+stream_proxy = ROOT / "extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/ads/StreamProxy.java"
+proxy_text = stream_proxy.read_text()
+old = 'String proxy = Settings.ADS_PROXY_URL.get().trim();\\n        if (proxy.isEmpty()) return usherUri;'
+new = 'String proxy = Settings.ADS_PROXY_URL.get().trim();\\n        if (proxy.isEmpty()) proxy = "https://eu2.luminous.dev/live/{channel}?allow_source=true&allow_audio_only=true";'
+if old not in proxy_text:
+    raise RuntimeError("Could not locate Uyu StreamProxy default")
+stream_proxy.write_text(proxy_text.replace(old, new, 1))
 (settings_dst / "Settings.java").write_text(Path("twitch-build/Settings.java").read_text())
 (settings_dst / "UyuSettingsFragment.java").write_text(Path("twitch-build/UyuSettingsFragment.java").read_text())
 
