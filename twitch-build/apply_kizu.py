@@ -256,7 +256,7 @@ if needle not in s:
 s = s.replace(
     needle,
     needle +
-    "        if (!Settings.EMOTES_7TV.get() && !Settings.EMOTES_BTTV.get()) {\n"
+    "        if (!Settings.EMOTES_7TV.get() && !Settings.EMOTES_BTTV.get() && !Settings.EMOTES_FFZ.get()) {\n"
     "            forget(textView);\n"
     "            return;\n"
     "        }\n",
