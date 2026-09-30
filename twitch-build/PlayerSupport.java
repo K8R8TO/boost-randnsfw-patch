@@ -170,9 +170,6 @@ public final class PlayerSupport {
         void attach() {
             pane.post(() -> {
                 try {
-                    if (pane.getTag(TAG_KEY) != null) return;
-                    pane.setTag(TAG_KEY, this);
-
                     FrameLayout.LayoutParams gestureParams =
                             new FrameLayout.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -231,9 +228,13 @@ public final class PlayerSupport {
             try {
                 Object player = findPlayer(pane);
                 if (player != null) {
-                    if (invokeNoArg(player, "stop")) {
-                        invokeNoArg(player, "prepare");
+                    if (invokeNoArg(player, "prepare")) {
                         invokeNoArg(player, "play");
+                        return;
+                    }
+                    if (invokeNoArg(player, "retry") ||
+                            invokeNoArg(player, "reload") ||
+                            invokeNoArg(player, "refresh")) {
                         return;
                     }
                 }
@@ -295,6 +296,9 @@ public final class PlayerSupport {
         float startBrightness;
         int mode;
         boolean active;
+        boolean seekDone;
+        TextView osd;
+        Runnable hideOsd;
 
         GestureLayer(Context context, ViewGroup pane) {
             super(context);
@@ -316,6 +320,7 @@ public final class PlayerSupport {
                         startBrightness = getBrightness();
                         mode = 0;
                         active = false;
+                        seekDone = false;
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
@@ -337,13 +342,17 @@ public final class PlayerSupport {
 
                         if (mode == 1) updateBrightness(dy);
                         else if (mode == 2) updateVolume(dy);
-                        else if (mode == 3) updateSeek(dx);
+                        else if (mode == 3 && !seekDone) {
+                            updateSeek(dx);
+                            seekDone = true;
+                        }
                         return true;
 
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
                         active = false;
                         mode = 0;
+                        seekDone = false;
                         return true;
 
                     default:
@@ -403,25 +412,30 @@ public final class PlayerSupport {
 
         void showOwd(String text) {
             if (!Settings.GESTURE_OSD.get()) return;
-            TextView osd = new TextView(context);
-            osd.setText(text);
-            osd.setTextColor(Color.WHITE);
-            osd.setTextSize(18f);
-            osd.setGravity(Gravity.CENTER);
-            osd.setPadding(dp(18), dp(10), dp(18), dp(10));
-            osd.setBackgroundColor(Color.argb(190, 0, 0, 0));
+            if (!(pane instanceof FrameLayout)) return;
 
-            if (pane instanceof FrameLayout) {
+            if (osd == null) {
+                osd = new TextView(context);
+                osd.setTextColor(Color.WHITE);
+                osd.setTextSize(18f);
+                osd.setGravity(Gravity.CENTER);
+                osd.setPadding(dp(18), dp(10), dp(18), dp(10));
+                osd.setBackgroundColor(Color.argb(190, 0, 0, 0));
                 FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
                 lp.gravity = Gravity.CENTER;
                 pane.addView(osd, lp);
-                MAIN.postDelayed(() -> {
-                    try { pane.removeView(osd); } catch (Throwable ignored) {}
-                }, 700L);
             }
+
+            osd.setText(text);
+            osd.setVisibility(View.VISIBLE);
+            if (hideOsd != null) MAIN.removeCallbacks(hideOsd);
+            hideOsd = () -> {
+                if (osd != null) osd.setVisibility(View.GONE);
+            };
+            MAIN.postDelayed(hideOsd, 700L);
         }
 
         float getBrightness() {
