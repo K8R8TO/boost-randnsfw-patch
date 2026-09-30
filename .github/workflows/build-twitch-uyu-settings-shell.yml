@@ -50,12 +50,12 @@ jobs:
       - name: Collect Kizu MPP
         run: |
           mkdir -p out
-          cp uyu/patches/build/libs/kizu-0.2.1.mpp out/
-          sha256sum out/kizu-0.2.1.mpp
+          cp uyu/patches/build/libs/kizu-0.2.2.mpp out/
+          sha256sum out/kizu-0.2.2.mpp
 
       - name: Upload Kizu MPP
         uses: actions/upload-artifact@v4
         with:
-          name: kizu-v0.2.1-mpp
-          path: out/kizu-0.2.1.mpp
+          name: kizu-v0.2.2-mpp
+          path: out/kizu-0.2.2.mpp
           if-no-files-found: error
