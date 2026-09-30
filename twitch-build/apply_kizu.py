@@ -310,6 +310,53 @@ catalog.write_text(s)
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
 
+old_create_drawable = """    Drawable createDrawable(Resources resources, Emote emote) {
+        ImageData data = memory.get(emote.url);
+        if (data == null) {
+            return null;
+        }
+        if (data.drawableState != null) {
+            return data.drawableState.newDrawable(resources);
+        }
+        return data.bitmap == null ? null : new BitmapDrawable(resources, data.bitmap);
+    }"""
+
+new_create_drawable = """    Drawable createDrawable(Resources resources, Emote emote) {
+        ImageData data = memory.get(emote.url);
+        if (data == null) {
+            return null;
+        }
+
+        // Recreate animated drawables from retained encoded bytes. This keeps the
+        // ImageDecoder source alive instead of relying only on ConstantState.
+        if (data.animatedSource && data.sourceBytes != null &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                Drawable decoded = ImageDecoder.decodeDrawable(
+                        ImageDecoder.createSource(ByteBuffer.wrap(data.sourceBytes)),
+                        (decoder, info, source) -> configureDecoder(
+                                decoder, info, data.targetDimension
+                        )
+                );
+                if (decoded instanceof android.graphics.drawable.Animatable) {
+                    ((android.graphics.drawable.Animatable) decoded).start();
+                }
+                return decoded;
+            } catch (Exception ignored) {
+                // Fall through to the cached drawable state.
+            }
+        }
+
+        if (data.drawableState != null) {
+            return data.drawableState.newDrawable(resources);
+        }
+        return data.bitmap == null ? null : new BitmapDrawable(resources, data.bitmap);
+    }"""
+
+if old_create_drawable not in s:
+    raise RuntimeError("Donor createDrawable block changed; cannot apply safely.")
+s = s.replace(old_create_drawable, new_create_drawable, 1)
+
 old_decode = """    private static ImageData decode(byte[] bytes, boolean animated, int targetDimension)
             throws IOException {
         if (animated && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -327,7 +374,7 @@ old_decode = """    private static ImageData decode(byte[] bytes, boolean animat
                 int width = Math.max(1, decoded.getIntrinsicWidth());
                 int height = Math.max(1, decoded.getIntrinsicHeight());
                 long estimate = (long) width * height * 4L * 4L;
-                return new ImageData(null, state, saturatedInt(estimate));
+                return new ImageData(null, state, bytes, true, targetDimension, saturatedInt(estimate + bytes.length));
             }
         }
 
@@ -335,7 +382,14 @@ old_decode = """    private static ImageData decode(byte[] bytes, boolean animat
         if (bitmap == null) {
             throw new IOException("Unable to decode emote image");
         }
-        return new ImageData(bitmap, null, bitmap.getByteCount());
+        return new ImageData(
+                bitmap,
+                null,
+                null,
+                false,
+                targetDimension,
+                bitmap.getByteCount()
+        );
     }"""
 
 new_decode = """    private static boolean isWebp(byte[] bytes) {
@@ -380,6 +434,47 @@ new_decode = """    private static boolean isWebp(byte[] bytes) {
     }"""
 
 s = s.replace(old_decode, new_decode)
+
+old_image_data = """    private static final class ImageData {
+        final Bitmap bitmap;
+        final Drawable.ConstantState drawableState;
+        final int costBytes;
+
+        ImageData(Bitmap bitmap, Drawable.ConstantState drawableState, int costBytes) {
+            this.bitmap = bitmap;
+            this.drawableState = drawableState;
+            this.costBytes = costBytes;
+        }
+    }"""
+
+new_image_data = """    private static final class ImageData {
+        final Bitmap bitmap;
+        final Drawable.ConstantState drawableState;
+        final byte[] sourceBytes;
+        final boolean animatedSource;
+        final int targetDimension;
+        final int costBytes;
+
+        ImageData(
+                Bitmap bitmap,
+                Drawable.ConstantState drawableState,
+                byte[] sourceBytes,
+                boolean animatedSource,
+                int targetDimension,
+                int costBytes
+        ) {
+            this.bitmap = bitmap;
+            this.drawableState = drawableState;
+            this.sourceBytes = sourceBytes;
+            this.animatedSource = animatedSource;
+            this.targetDimension = targetDimension;
+            this.costBytes = costBytes;
+        }
+    }"""
+
+if old_image_data not in s:
+    raise RuntimeError("Current ImageData block changed; cannot apply safely.")
+s = s.replace(old_image_data, new_image_data, 1)
 loader.write_text(s)
 
 support = emote_ext_dst / "EmoteSupport.java"
