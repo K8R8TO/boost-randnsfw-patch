@@ -1,7 +1,7 @@
 {
-  "created_at": "",
-  "description": "",
-  "download_url": "",
-  "signature_download_url": "",
-  "version": ""
+  "name": "Kizu Twitch Patches",
+  "description": "PurpleTV features for Twitch (Emotes, Privacy, etc.)",
+  "version": "0.3.0",
+  "download_url": "https://github.com/K8R8TO/boost-randnsfw-patch/releases/download/v0.3.0/kizu-0.3.0.mpp",
+  "signature_download_url": ""
 }
