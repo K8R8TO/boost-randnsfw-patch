@@ -1,5 +1,6 @@
 package io.github.bakwudo.uyu.extension.chat;
 
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.text.SpannableStringBuilder;
@@ -176,7 +177,7 @@ public final class ChatSupport {
         if (!(view instanceof ViewGroup)) return null;
         ViewGroup group = (ViewGroup) view;
         for (int i = 0; i < group.getChildCount(); i++) {
-            RecyclerView found = findRecycler(group.getChildAt(i));
+            View found = findRecycler(group.getChildAt(i));
             if (found != null) return found;
         }
         return null;
