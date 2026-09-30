@@ -374,7 +374,7 @@ old_decode = """    private static ImageData decode(byte[] bytes, boolean animat
                 int width = Math.max(1, decoded.getIntrinsicWidth());
                 int height = Math.max(1, decoded.getIntrinsicHeight());
                 long estimate = (long) width * height * 4L * 4L;
-                return new ImageData(null, state, bytes, true, targetDimension, saturatedInt(estimate + bytes.length));
+                return new ImageData(null, state, saturatedInt(estimate));
             }
         }
 
@@ -437,7 +437,14 @@ new_decode = """    private static boolean isWebp(byte[] bytes) {
         if (bitmap == null) {
             throw new IOException("Unable to decode emote image");
         }
-        return new ImageData(bitmap, null, bitmap.getByteCount());
+        return new ImageData(
+                bitmap,
+                null,
+                null,
+                false,
+                targetDimension,
+                bitmap.getByteCount()
+        );
     }"""
 
 s = s.replace(old_decode, new_decode)
