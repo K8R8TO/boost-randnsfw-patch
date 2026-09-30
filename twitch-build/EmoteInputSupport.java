@@ -22,14 +22,14 @@ import java.util.WeakHashMap;
 
 import io.github.bakwudo.uyu.extension.settings.Settings;
 
-final class EmoteInputSupport {
+public final class EmoteInputSupport {
     private static final WeakHashMap<EditText, Binding> BINDINGS = new WeakHashMap<>();
     private static final int MAX_PICKER_EMOTES = 120;
     private static final int MAX_SUGGESTIONS = 6;
 
     private EmoteInputSupport() {}
 
-    static void onViewCreated(View root) {
+    public static void onViewCreated(View root) {
         if (root == null) return;
         try {
             scan(root);
