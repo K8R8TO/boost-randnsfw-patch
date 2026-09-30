@@ -10,10 +10,7 @@ DONOR = Path("hooman")
 settings_dst = ROOT / "extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings"
 settings_dst.mkdir(parents=True, exist_ok=True)
 
-# Kizu ad blocking uses a live manifest proxy by default. Uyu's built-in client-side
-# blocker otherwise masks Twitch's server-stitched ad breaks with the black countdown overlay.
-# The proxy is based on the currently published Luminous endpoints; users can still replace it
-# through the existing proxy setting.
+# Kizu ad blocking uses a live manifest proxy by default.
 stream_proxy = ROOT / "extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/ads/StreamProxy.java"
 proxy_text = stream_proxy.read_text()
 old = 'String proxy = Settings.ADS_PROXY_URL.get().trim();\n        if (proxy.isEmpty()) return usherUri;'
@@ -50,6 +47,55 @@ shutil.copytree(donor_emotes, emote_ext_dst)
 # Make donor renderer obey Kizu settings.
 catalog = emote_ext_dst / "EmoteCatalog.java"
 s = catalog.read_text()
+
+# FIX 1: Correctly parse BTTV's "imageType" instead of looking for a non-existent "animated" boolean
+old_bttv = """    private static void parseBetterTtvArray(JSONArray emotes, Map<String, Emote> target) {
+        if (emotes == null) {
+            return;
+        }
+        for (int index = 0; index < emotes.length(); index++) {
+            JSONObject item = emotes.optJSONObject(index);
+            if (item == null) {
+                continue;
+            }
+            String id = item.optString("id", "");
+            String name = item.optString("code", "");
+            if (id.isEmpty() || name.isEmpty()) {
+                continue;
+            }
+            target.put(name, new Emote(
+                    name,
+                    "https://cdn.betterttv.net/emote/" + id + "/2x.webp",
+                    item.optBoolean("animated", false)
+            ));
+        }
+    }"""
+
+new_bttv = """    private static void parseBetterTtvArray(JSONArray emotes, Map<String, Emote> target) {
+        if (emotes == null) {
+            return;
+        }
+        for (int index = 0; index < emotes.length(); index++) {
+            JSONObject item = emotes.optJSONObject(index);
+            if (item == null) {
+                continue;
+            }
+            String id = item.optString("id", "");
+            String name = item.optString("code", "");
+            if (id.isEmpty() || name.isEmpty()) {
+                continue;
+            }
+            boolean isAnimated = "gif".equalsIgnoreCase(item.optString("imageType", "png"));
+            String ext = isAnimated ? "gif" : "webp";
+            target.put(name, new Emote(
+                    name,
+                    "https://cdn.betterttv.net/emote/" + id + "/2x." + ext,
+                    isAnimated
+            ));
+        }
+    }"""
+s = s.replace(old_bttv, new_bttv)
+
 s = s.replace(
     "    private final ProviderState globalBetterTtv = new ProviderState();",
     "    private final ProviderState globalBetterTtv = new ProviderState();\n    private final ProviderState globalFfz = new ProviderState();",
@@ -203,9 +249,10 @@ s = s.replace(
                                 spanned.getSpans(0, spanned.length(), CenteredImageSpan.class);
                         boolean animated = false;
                         for (CenteredImageSpan span : spans) {
-                            if (span.getDrawable() instanceof android.graphics.drawable.Animatable) {
+                            android.graphics.drawable.Drawable d = span.getDrawable();
+                            if (d instanceof android.graphics.drawable.Animatable) {
+                                d.invalidateSelf();
                                 animated = true;
-                                break;
                             }
                         }
                         if (animated) view.invalidate();
@@ -259,21 +306,80 @@ s = s.replace(
 
 catalog.write_text(s)
 
-# Fix the animated emote freezing bug by keeping the image bytes alive in memory.
+# FIX 2: Add bulletproof byte-check fallback for WEBP/GIF in EmoteImageLoader
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
-s = s.replace(
-    "    private static final class ImageData {\n        final Bitmap bitmap;\n        final Drawable.ConstantState drawableState;\n        final int costBytes;\n\n        ImageData(Bitmap bitmap, Drawable.ConstantState drawableState, int costBytes) {\n            this.bitmap = bitmap;\n            this.drawableState = drawableState;\n            this.costBytes = costBytes;\n        }\n    }",
-    "    private static final class ImageData {\n        final Bitmap bitmap;\n        final Drawable.ConstantState drawableState;\n        final byte[] sourceBytes;\n        final int costBytes;\n\n        ImageData(Bitmap bitmap, Drawable.ConstantState drawableState, byte[] sourceBytes, int costBytes) {\n            this.bitmap = bitmap;\n            this.drawableState = drawableState;\n            this.sourceBytes = sourceBytes;\n            this.costBytes = costBytes;\n        }\n    }"
-)
-s = s.replace(
-    "                return new ImageData(null, state, saturatedInt(estimate));",
-    "                return new ImageData(null, state, bytes, saturatedInt(estimate));"
-)
-s = s.replace(
-    "        return new ImageData(bitmap, null, bitmap.getByteCount());",
-    "        return new ImageData(bitmap, null, null, bitmap.getByteCount());"
-)
+
+old_decode = """    private static ImageData decode(byte[] bytes, boolean animated, int targetDimension)
+            throws IOException {
+        if (animated && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Drawable decoded;
+            try {
+                decoded = ImageDecoder.decodeDrawable(
+                        ImageDecoder.createSource(ByteBuffer.wrap(bytes)),
+                        (decoder, info, source) -> configureDecoder(decoder, info, targetDimension)
+                );
+            } catch (IllegalArgumentException failure) {
+                throw new IOException("Invalid animated emote dimensions", failure);
+            }
+            Drawable.ConstantState state = decoded.getConstantState();
+            if (state != null) {
+                int width = Math.max(1, decoded.getIntrinsicWidth());
+                int height = Math.max(1, decoded.getIntrinsicHeight());
+                long estimate = (long) width * height * 4L * 4L;
+                return new ImageData(null, state, saturatedInt(estimate));
+            }
+        }
+
+        Bitmap bitmap = decodeBitmap(bytes, targetDimension);
+        if (bitmap == null) {
+            throw new IOException("Unable to decode emote image");
+        }
+        return new ImageData(bitmap, null, bitmap.getByteCount());
+    }"""
+
+new_decode = """    private static boolean isWebp(byte[] bytes) {
+        if (bytes.length < 12) return false;
+        return bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F' &&
+               bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+    }
+
+    private static boolean isGif(byte[] bytes) {
+        if (bytes.length < 6) return false;
+        return (bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == '8' &&
+               (bytes[4] == '7' || bytes[4] == '9') && bytes[5] == 'a');
+    }
+
+    private static ImageData decode(byte[] bytes, boolean animated, int targetDimension)
+            throws IOException {
+        boolean forceAnimated = isWebp(bytes) || isGif(bytes);
+        if ((animated || forceAnimated) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Drawable decoded;
+            try {
+                decoded = ImageDecoder.decodeDrawable(
+                        ImageDecoder.createSource(ByteBuffer.wrap(bytes)),
+                        (decoder, info, source) -> configureDecoder(decoder, info, targetDimension)
+                );
+            } catch (IllegalArgumentException failure) {
+                throw new IOException("Invalid animated emote dimensions", failure);
+            }
+            Drawable.ConstantState state = decoded.getConstantState();
+            if (state != null) {
+                int width = Math.max(1, decoded.getIntrinsicWidth());
+                int height = Math.max(1, decoded.getIntrinsicHeight());
+                long estimate = (long) width * height * 4L * 4L;
+                return new ImageData(null, state, saturatedInt(estimate));
+            }
+        }
+
+        Bitmap bitmap = decodeBitmap(bytes, targetDimension);
+        if (bitmap == null) {
+            throw new IOException("Unable to decode emote image");
+        }
+        return new ImageData(bitmap, null, bitmap.getByteCount());
+    }"""
+
+s = s.replace(old_decode, new_decode)
 loader.write_text(s)
 
 support = emote_ext_dst / "EmoteSupport.java"
