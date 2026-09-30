@@ -14,11 +14,13 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
+import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
 private const val SUPPORT = "Lio/github/bakwudo/uyu/extension/chat/ChatSupport;"
 
 internal val showDeletedMessagesPatch = bytecodePatch {
     compatibleWith(COMPATIBILITY_TWITCH)
+    dependsOn(sharedExtensionPatch)
 
     execute {
         val spanClass = mutableClassDefBy(DeletedMessageSpanCtorFingerprint.classDef)
