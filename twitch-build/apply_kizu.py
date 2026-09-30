@@ -179,12 +179,12 @@ s = s.replace(
     }
 
     static final class Heartbeat implements Runnable {
-        private static final java.util.Set<TextView> VIEWS =
+        private static final java.util.Set<android.widget.TextView> VIEWS =
                 java.util.Collections.synchronizedSet(
-                        java.util.Collections.newSetFromMap(new java.util.WeakHashMap<TextView, Boolean>()));
+                        java.util.Collections.newSetFromMap(new java.util.WeakHashMap<android.widget.TextView, Boolean>()));
         private static android.os.Handler handler;
 
-        static void attach(TextView view) {
+        static void attach(android.widget.TextView view) {
             VIEWS.add(view);
             if (handler == null) {
                 handler = new android.os.Handler(view.getContext().getMainLooper());
@@ -195,7 +195,7 @@ s = s.replace(
         @Override
         public void run() {
             synchronized (VIEWS) {
-                for (TextView view : VIEWS) {
+                for (android.widget.TextView view : VIEWS) {
                     CharSequence text = view.getText();
                     if (view.isAttachedToWindow() && text instanceof android.text.Spanned) {
                         android.text.Spanned spanned = (android.text.Spanned) text;
@@ -287,7 +287,7 @@ s = s.replace(
     "            forget(textView);\n"
     "            return;\n"
     "        }\n"
-    "        Heartbeat.attach(textView);\n",
+    "        EmoteCatalog.Heartbeat.attach(textView);\n",
     1,
 )
 support.write_text(s)
