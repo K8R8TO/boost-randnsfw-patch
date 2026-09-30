@@ -11,6 +11,7 @@ import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITC
 import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
 private const val EXTENSION = "Lapp/morphe/extension/twitch/emotes/EmoteSupport;"
+private const val CHANNEL_CLASS = "Ltv/twitch/android/shared/chat/pub/messages/data/ChannelChatConnectionKey;"
 private const val CHAT_CLASS = "Lj2d;"
 private const val CHAT_ITEM = "Liop;"
 private const val TEXT_VIEW = "Landroid/widget/TextView;"
@@ -22,13 +23,26 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
     dependsOn(sharedExtensionPatch)
 
     execute {
-        val channelConstructor = ChannelConnectionConstructorFingerprint.method
-        val channelInstructions = channelConstructor.instructions
-        if (channelInstructions.lastOrNull()?.opcode?.name != "RETURN_VOID") {
-            throw PatchException("Kizu emotes: channel connection constructor changed.")
+        val channelClassDef = classDefByOrNull(CHANNEL_CLASS)
+            ?: throw PatchException("Kizu emotes: exact Twitch 31.3.1 channel connection class was not found.")
+        val channelClass = mutableClassDefBy(channelClassDef)
+
+        val channelConstructor = channelClass.methods.singleOrNull { method ->
+            method.name == "<init>" &&
+                method.returnType == "V" &&
+                method.parameterTypes.map { it.toString() } ==
+                    listOf("Ljava/lang/String;", "Ljava/lang/String;")
+        } ?: throw PatchException(
+            "Kizu emotes: expected one ChannelChatConnectionKey(String,String) constructor.",
+        )
+
+        val returnIndex = channelConstructor.instructions.indexOfLast { it.opcode.name == "return-void" }
+        if (returnIndex < 0) {
+            throw PatchException("Kizu emotes: channel connection constructor has no return-void.")
         }
+
         channelConstructor.addInstructions(
-            channelInstructions.lastIndex,
+            returnIndex,
             "invoke-static { p1, p2 }, $EXTENSION->onChannelChanged(Ljava/lang/String;Ljava/lang/String;)V",
         )
 
