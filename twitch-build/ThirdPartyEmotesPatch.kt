@@ -81,8 +81,8 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
         bindMethod.addInstructions(
             textCall.index + 1,
             """
-            invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)V
             invoke-static { v$textViewRegister, p1 }, $CHAT_SUPPORT->decorateTimestamp(Landroid/widget/TextView;Ljava/lang/Object;)V
+            invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)V
             """,
         )
     }
