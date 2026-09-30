@@ -486,6 +486,8 @@ loader.write_text(s)
 
 support = emote_ext_dst / "EmoteSupport.java"
 s = support.read_text()
+if "import android.content.Context;\n" not in s:
+    s = s.replace("package app.morphe.extension.twitch.emotes;\n\n", "package app.morphe.extension.twitch.emotes;\n\nimport android.content.Context;\n", 1)
 s = s.replace(
     "import android.widget.TextView;\n",
     "import android.widget.TextView;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\n",
