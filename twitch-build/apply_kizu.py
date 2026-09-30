@@ -773,7 +773,7 @@ for rule in [
     "-keep class io.github.bakwudo.uyu.extension.player.** { *; }",
 ]:
     if rule not in s:
-        s += "\\n" + rule + "\\n"
+        s += "\n" + rule + "\n"
 proguard.write_text(s)
 
 # Keep the copied donor classes when R8 builds the extension.
