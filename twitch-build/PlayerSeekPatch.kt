@@ -8,11 +8,13 @@ import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
+import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
 private const val SUPPORT = "Lio/github/bakwudo/uyu/extension/player/PlayerSupport;"
 
 internal val playerSeekPatch = bytecodePatch {
     compatibleWith(COMPATIBILITY_TWITCH)
+    dependsOn(sharedExtensionPatch)
 
     execute {
         var candidates = 0
