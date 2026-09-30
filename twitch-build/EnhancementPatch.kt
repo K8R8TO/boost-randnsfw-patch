@@ -1,32 +1,24 @@
 package io.github.bakwudo.uyu.patches.twitch.enhancement
 
-import app.morphe.patcher.patch.bytecodePatch
 import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch
 import io.github.bakwudo.uyu.patches.twitch.appearance.hidePromotionsPatch
+import io.github.bakwudo.uyu.patches.twitch.chat.deletedMessagesPatch
 import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch
-import io.github.bakwudo.uyu.patches.twitch.chat.showDeletedMessagesPatch
 import io.github.bakwudo.uyu.patches.twitch.login.fixLoginPatch
 import io.github.bakwudo.uyu.patches.twitch.notifications.fixNotificationsPatch
 import io.github.bakwudo.uyu.patches.twitch.privacy.privacyPatch
 import io.github.bakwudo.uyu.patches.twitch.settings.settingsPatch
-import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
+import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
-@Suppress("unused")
-val twitchEnhancementPatch = bytecodePatch(
-    name = "Twitch Enhancement",
-    description = "Kizu: third-party emotes, chat controls, player controls, ad blocking, privacy, " +
-        "and patched-app login/notification compatibility.",
-) {
+val enhancementPatch = bytecodePatch {
     compatibleWith(COMPATIBILITY_TWITCH)
-    dependsOn(
-        settingsPatch,
-        fixLoginPatch,
-        fixNotificationsPatch,
-        blockAdsPatch,
-        hidePromotionsPatch,
-        thirdPartyEmotesPatch,
-        showDeletedMessagesPatch,
-        playerSeekPatch,
-        privacyPatch,
-    )
+    dependsOn(sharedExtensionPatch)
+    dependsOn(blockAdsPatch)
+    dependsOn(hidePromotionsPatch)
+    dependsOn(deletedMessagesPatch)
+    dependsOn(thirdPartyEmotesPatch)
+    dependsOn(fixLoginPatch)
+    dependsOn(fixNotificationsPatch)
+    dependsOn(privacyPatch)
+    dependsOn(settingsPatch)
 }
