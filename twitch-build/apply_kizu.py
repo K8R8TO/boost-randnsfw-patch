@@ -178,6 +178,44 @@ s = s.replace(
         if (updated) onUpdated.accept(channelId);
     }
 
+    static final class Heartbeat implements Runnable {
+        private static final java.util.Set<TextView> VIEWS =
+                java.util.Collections.synchronizedSet(
+                        java.util.Collections.newSetFromMap(new java.util.WeakHashMap<TextView, Boolean>()));
+        private static android.os.Handler handler;
+
+        static void attach(TextView view) {
+            VIEWS.add(view);
+            if (handler == null) {
+                handler = new android.os.Handler(view.getContext().getMainLooper());
+                handler.post(new Heartbeat());
+            }
+        }
+
+        @Override
+        public void run() {
+            synchronized (VIEWS) {
+                for (TextView view : VIEWS) {
+                    CharSequence text = view.getText();
+                    if (view.isAttachedToWindow() && text instanceof android.text.Spanned) {
+                        android.text.Spanned spanned = (android.text.Spanned) text;
+                        CenteredImageSpan[] spans =
+                                spanned.getSpans(0, spanned.length(), CenteredImageSpan.class);
+                        boolean animated = false;
+                        for (CenteredImageSpan span : spans) {
+                            if (span.getDrawable() instanceof android.graphics.drawable.Animatable) {
+                                animated = true;
+                                break;
+                            }
+                        }
+                        if (animated) view.invalidate();
+                    }
+                }
+            }
+            handler.postDelayed(this, 50);
+        }
+    }
+
     private void schedule""",
     1,
 )
@@ -248,7 +286,8 @@ s = s.replace(
     "        if (!Settings.EMOTES_7TV.get() && !Settings.EMOTES_BTTV.get() && !Settings.EMOTES_FFZ.get()) {\n"
     "            forget(textView);\n"
     "            return;\n"
-    "        }\n",
+    "        }\n"
+    "        Heartbeat.attach(textView);\n",
     1,
 )
 support.write_text(s)
