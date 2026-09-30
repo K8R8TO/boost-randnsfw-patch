@@ -111,6 +111,7 @@ public final class EmoteInputSupport {
         }
 
         void attach() {
+            EmoteSupport.ensureCatalogLoaded(input.getContext());
             input.addTextChangedListener(watcher);
             input.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
                 @Override public void onViewAttachedToWindow(View v) {
