@@ -10,7 +10,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
-import androidx.recyclerview.widget.RecyclerView;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -147,7 +146,7 @@ public final class ChatSupport {
 
     private static ViewGroup findChatContainer(View root) {
         if (!(root instanceof ViewGroup)) return null;
-        RecyclerView recycler = findRecycler(root);
+        View recycler = findRecycler(root);
         if (recycler == null) return null;
 
         View cursor = recycler;
@@ -171,8 +170,9 @@ public final class ChatSupport {
         return candidate;
     }
 
-    private static RecyclerView findRecycler(View view) {
-        if (view instanceof RecyclerView) return (RecyclerView) view;
+    private static View findRecycler(View view) {
+        if (view != null && "androidx.recyclerview.widget.RecyclerView".equals(
+                view.getClass().getName())) return view;
         if (!(view instanceof ViewGroup)) return null;
         ViewGroup group = (ViewGroup) view;
         for (int i = 0; i < group.getChildCount(); i++) {
