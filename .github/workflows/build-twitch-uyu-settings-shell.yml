@@ -38,6 +38,8 @@ jobs:
           path: hooman
 
       - name: Apply Kizu customizations
+        env:
+          KIZU_VERSION: 0.4.${{ github.run_number }}
         run: python3 twitch-build/apply_kizu.py
 
       - name: Build Kizu MPP
@@ -50,14 +52,14 @@ jobs:
       - name: Collect Kizu MPP
         run: |
           mkdir -p out
-          cp uyu/patches/build/libs/kizu-0.3.0.mpp out/
-          sha256sum out/kizu-0.3.0.mpp
+          cp uyu/patches/build/libs/kizu-*.mpp out/kizu.mpp
+          sha256sum out/kizu.mpp
 
       - name: Upload Kizu MPP
         uses: actions/upload-artifact@v4
         with:
-          name: kizu-v0.3.0-mpp
-          path: out/kizu-0.3.0.mpp
+          name: kizu-mpp
+          path: out/kizu.mpp
           if-no-files-found: error
 
   release:
@@ -73,7 +75,7 @@ jobs:
       - name: Download Kizu MPP
         uses: actions/download-artifact@v4
         with:
-          name: kizu-v0.3.0-mpp
+          name: kizu-mpp
           path: out
 
       - name: Publish release and update patches-bundle.json
@@ -82,7 +84,7 @@ jobs:
         run: |
           VERSION="0.4.${GITHUB_RUN_NUMBER}"
           TAG="v${VERSION}"
-          cp out/kizu-0.3.0.mpp "kizu-${VERSION}.mpp"
+          cp out/kizu.mpp "kizu-${VERSION}.mpp"
           gh release create "$TAG" "kizu-${VERSION}.mpp" --title "Kizu Twitch ${VERSION}" --notes "Auto-released after manual approval"
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/kizu-${VERSION}.mpp"
           jq -n --arg v "$VERSION" --arg u "$URL" --arg c "$(date -u +%Y-%m-%dT%H:%M:%S)" '{created_at:$c, description:"PurpleTV features for Twitch", download_url:$u, signature_download_url:"", version:$v}' > patches-bundle.json
