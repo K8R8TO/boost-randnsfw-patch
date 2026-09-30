@@ -1,7 +1,7 @@
 package io.github.bakwudo.uyu.patches.twitch.player
 
-import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
+import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
@@ -19,39 +19,44 @@ internal val playerSeekPatch = bytecodePatch {
 
     execute {
         var candidates = 0
+
         classDefForEach { classDef ->
-            classDef.methods.forEach { method ->
+            val mutableClass = mutableClassDefBy(classDef)
+            mutableClass.methods.forEach { method ->
                 val instructions = method.instructions.toList()
-                val constants = instructions.withIndex().filter { (_, instruction) ->
-                    val literal = (instruction as? NarrowLiteralInstruction)?.narrowLiteral
-                    literal == -10 || literal == 30
+
+                val rewinds = instructions.withIndex().filter { indexed ->
+                    (indexed.value as? NarrowLiteralInstruction)?.narrowLiteral == -10
                 }
-                if (constants.isEmpty()) return@forEach
+                val forwards = instructions.withIndex().filter { indexed ->
+                    (indexed.value as? NarrowLiteralInstruction)?.narrowLiteral == 30
+                }
+
+                if (rewinds.size != 1 || forwards.size != 1) return@forEach
+
                 val hasIntegerBox = instructions.any { instruction ->
-                    val reference = (instruction as? ReferenceInstruction)?.reference as? MethodReference
+                    val reference =
+                        (instruction as? ReferenceInstruction)?.reference as? MethodReference
                     reference?.definingClass == "Ljava/lang/Integer;" &&
                         reference.name == "valueOf" &&
                         reference.parameterTypes.map { it.toString() } == listOf("I") &&
                         reference.returnType == "Ljava/lang/Integer;"
                 }
                 if (!hasIntegerBox) return@forEach
-                if (!instructions.any { (it as? ReferenceInstruction)?.reference is MethodReference &&
-                        ((it as ReferenceInstruction).reference as MethodReference).name == "onNext" }) {
-                    return@forEach
-                }
 
-                val rewinds = constants.filter {
-                    (it.value as NarrowLiteralInstruction).narrowLiteral == -10
+                val hasSubject = instructions.any { instruction ->
+                    val reference =
+                        (instruction as? ReferenceInstruction)?.reference as? MethodReference
+                    reference?.name == "onNext"
                 }
-                val forwards = constants.filter {
-                    (it.value as NarrowLiteralInstruction).narrowLiteral == 30
-                }
-                if (rewinds.size != 1 || forwards.size != 1) return@forEach
-                candidates++
+                if (!hasSubject) return@forEach
 
                 fun replace(index: Int, getter: String) {
-                    val register = (instructions[index] as? OneRegisterInstruction)?.registerA
-                        ?: throw PatchException("Kizu player seek: literal does not use one register.")
+                    val register =
+                        (instructions[index] as? OneRegisterInstruction)?.registerA
+                            ?: throw PatchException(
+                                "Kizu player seek: target literal is not a one-register instruction."
+                            )
                     method.replaceInstruction(
                         index,
                         "invoke-static {}, $SUPPORT->$getter()I\nmove-result v$register",
@@ -60,10 +65,14 @@ internal val playerSeekPatch = bytecodePatch {
 
                 replace(rewinds[0].index, "getRewindSeek")
                 replace(forwards[0].index, "getForwardSeek")
+                candidates++
             }
         }
+
         if (candidates == 0) {
-            throw PatchException("Kizu player seek: the -10/+30 fast-seek method was not found.")
+            throw PatchException(
+                "Kizu player seek: the Twitch fast-seek method with -10/+30 was not found."
+            )
         }
     }
 }
