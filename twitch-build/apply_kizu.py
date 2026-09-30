@@ -221,18 +221,6 @@ s = s.replace(
 
 catalog.write_text(s)
 
-loader = emote_ext_dst / "EmoteImageLoader.java"
-s = loader.read_text()
-s = s.replace(
-    "import android.util.Size;\n",
-    "import android.util.Size;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\n",
-)
-s = s.replace("decode(cached, emote.animated, targetDimension)",
-              "decode(cached, emote.animated && Settings.EMOTES_ANIMATED.get(), targetDimension)")
-s = s.replace("decode(downloaded, emote.animated, targetDimension)",
-              "decode(downloaded, emote.animated && Settings.EMOTES_ANIMATED.get(), targetDimension)")
-loader.write_text(s)
-
 support = emote_ext_dst / "EmoteSupport.java"
 s = support.read_text()
 s = s.replace(
