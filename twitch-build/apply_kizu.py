@@ -385,10 +385,6 @@ old_decode = """    private static ImageData decode(byte[] bytes, boolean animat
         return new ImageData(bitmap, null, bitmap.getByteCount());
     }"""
 
-if old_decode not in s:
-    raise RuntimeError("Current donor EmoteImageLoader decode block changed; cannot apply safely.")
-s = s.replace(old_decode, new_decode, 1)
-
 new_decode = """    private static boolean isWebp(byte[] bytes) {
         if (bytes.length < 12) return false;
         return bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F' &&
