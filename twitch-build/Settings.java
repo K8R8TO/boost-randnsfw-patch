@@ -65,6 +65,8 @@ public final class Settings {
             new BooleanSetting("emotes_7tv", true);
     public static final BooleanSetting EMOTES_BTTV =
             new BooleanSetting("emotes_bttv", true);
+    public static final BooleanSetting EMOTES_FFZ =
+            new BooleanSetting("emotes_ffz", true);
     public static final BooleanSetting EMOTES_ANIMATED =
             new BooleanSetting("emotes_animated", true);
     public static final BooleanSetting EMOTES_PICKER =
