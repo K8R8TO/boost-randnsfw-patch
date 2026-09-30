@@ -259,6 +259,23 @@ s = s.replace(
 
 catalog.write_text(s)
 
+# Fix the animated emote freezing bug by keeping the image bytes alive in memory.
+loader = emote_ext_dst / "EmoteImageLoader.java"
+s = loader.read_text()
+s = s.replace(
+    "    private static final class ImageData {\n        final Bitmap bitmap;\n        final Drawable.ConstantState drawableState;\n        final int costBytes;\n\n        ImageData(Bitmap bitmap, Drawable.ConstantState drawableState, int costBytes) {\n            this.bitmap = bitmap;\n            this.drawableState = drawableState;\n            this.costBytes = costBytes;\n        }\n    }",
+    "    private static final class ImageData {\n        final Bitmap bitmap;\n        final Drawable.ConstantState drawableState;\n        final byte[] sourceBytes;\n        final int costBytes;\n\n        ImageData(Bitmap bitmap, Drawable.ConstantState drawableState, byte[] sourceBytes, int costBytes) {\n            this.bitmap = bitmap;\n            this.drawableState = drawableState;\n            this.sourceBytes = sourceBytes;\n            this.costBytes = costBytes;\n        }\n    }"
+)
+s = s.replace(
+    "                return new ImageData(null, state, saturatedInt(estimate));",
+    "                return new ImageData(null, state, bytes, saturatedInt(estimate));"
+)
+s = s.replace(
+    "        return new ImageData(bitmap, null, bitmap.getByteCount());",
+    "        return new ImageData(bitmap, null, null, bitmap.getByteCount());"
+)
+loader.write_text(s)
+
 support = emote_ext_dst / "EmoteSupport.java"
 s = support.read_text()
 s = s.replace(
