@@ -50,6 +50,10 @@ shutil.copytree(donor_emotes, emote_ext_dst)
 catalog = emote_ext_dst / "EmoteCatalog.java"
 s = catalog.read_text()
 s = s.replace(
+    "    private final ProviderState globalBetterTtv = new ProviderState();",
+    "    private final ProviderState globalBetterTtv = new ProviderState();\n    private final ProviderState globalFfz = new ProviderState();",
+)
+s = s.replace(
     "import android.content.Context;\n",
     "import android.content.Context;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\n",
 )
@@ -61,6 +65,9 @@ s = s.replace(
     "        }\n"
     "        if (Settings.EMOTES_BTTV.get()) {\n"
     "            schedule(globalBetterTtv, now, () -> loadGlobalBetterTtv(applicationContext));\n"
+    "        }\n"
+    "        if (Settings.EMOTES_FFZ.get()) {\n"
+    "            schedule(globalFfz, now, () -> loadGlobalFfz(applicationContext));\n"
     "        }",
 )
 s = s.replace(
@@ -73,6 +80,9 @@ s = s.replace(
     "        if (Settings.EMOTES_BTTV.get()) {\n"
     "            schedule(channel.betterTtv, now,\n"
     "                    () -> loadChannelBetterTtv(applicationContext, channelId, channel));\n"
+    "        }\n"
+    "        if (Settings.EMOTES_FFZ.get()) {\n"
+    "            schedule(channel.ffz, now, () -> loadChannelFfz(applicationContext, channelId, channel));\n"
     "        }",
 )
 s, count = re.subn(
@@ -80,6 +90,7 @@ s, count = re.subn(
     """    Emote find(String channelId, String name) {
         boolean sevenTv = Settings.EMOTES_7TV.get();
         boolean betterTtv = Settings.EMOTES_BTTV.get();
+        boolean ffz = Settings.EMOTES_FFZ.get();
 
         if (channelId != null) {
             ChannelState channel = getChannel(channelId, false);
@@ -92,6 +103,10 @@ s, count = re.subn(
                     Emote emote = channel.betterTtv.emotes.get(name);
                     if (emote != null) return emote;
                 }
+                if (ffz) {
+                    Emote emote = channel.ffz.emotes.get(name);
+                    if (emote != null) return emote;
+                }
             }
         }
 
@@ -99,7 +114,11 @@ s, count = re.subn(
             Emote emote = globalSevenTv.emotes.get(name);
             if (emote != null) return emote;
         }
-        return betterTtv ? globalBetterTtv.emotes.get(name) : null;
+        if (betterTtv) {
+            Emote emote = globalBetterTtv.emotes.get(name);
+            if (emote != null) return emote;
+        }
+        return ffz ? globalFfz.emotes.get(name) : null;
     }
 
     private void schedule""",
@@ -109,7 +128,97 @@ s, count = re.subn(
 )
 if count != 1:
     raise RuntimeError("Could not patch EmoteCatalog.find")
-catalog.write_text(s)
+
+    s = s.replace(
+    "    private static final class ChannelState {\n        final ProviderState sevenTv = new ProviderState();\n        final ProviderState betterTtv = new ProviderState();\n    }",
+    "    private static final class ChannelState {\n        final ProviderState sevenTv = new ProviderState();\n        final ProviderState betterTtv = new ProviderState();\n        final ProviderState ffz = new ProviderState();\n    }",
+    1,
+)
+
+    s = s.replace(
+    "    private void schedule",
+    """    private void loadGlobalFfz(Context context) {
+        boolean updated = false;
+        try {
+            LoadedValue<JSONArray> response = loadJsonArray(
+                    context,
+                    "ffz-global",
+                    "https://api.betterttv.net/3/cached/frankerfacez/emotes/global"
+            );
+            Map<String, Emote> loaded = new LinkedHashMap<>();
+            parseFfzArray(response.value, loaded);
+            globalFfz.publish(loaded, response.fresh);
+            updated = true;
+        } catch (Exception ignored) {
+            globalFfz.failed();
+        } finally {
+            globalFfz.loading.set(false);
+        }
+        if (updated) onUpdated.accept(null);
+    }
+
+    private void loadChannelFfz(Context context, String channelId, ChannelState channel) {
+        boolean updated = false;
+        try {
+            LoadedValue<JSONArray> response = loadOptionalJsonArray(
+                    context,
+                    "ffz-channel-" + channelId,
+                    "https://api.betterttv.net/3/cached/frankerfacez/users/twitch/" + channelId
+            );
+            Map<String, Emote> loaded = new LinkedHashMap<>();
+            parseFfzArray(response.value, loaded);
+            channel.ffz.publish(loaded, response.fresh);
+            updated = true;
+        } catch (Exception ignored) {
+            channel.ffz.failed();
+        } finally {
+            channel.ffz.loading.set(false);
+        }
+        if (updated) onUpdated.accept(channelId);
+    }
+
+    private void schedule""",
+    1,
+)
+
+    s = s.replace(
+    "    private static LoadedValue<JSONObject> loadJson(Context context, String cacheKey, String url)",
+    """    private static void parseFfzArray(JSONArray emotes, Map<String, Emote> target) {
+        if (emotes == null) return;
+        for (int index = 0; index < emotes.length(); index++) {
+            JSONObject item = emotes.optJSONObject(index);
+            if (item == null) continue;
+            String name = item.optString("code", "");
+            JSONObject images = item.optJSONObject("images");
+            if (name.isEmpty() || images == null) continue;
+            String url = images.optString("2x", "");
+            if (url.isEmpty()) url = images.optString("1x", "");
+            if (url.isEmpty()) url = images.optString("4x", "");
+            if (url.isEmpty()) continue;
+            boolean animated = "gif".equalsIgnoreCase(item.optString("imageType", ""));
+            target.put(name, new Emote(name, url, animated));
+        }
+    }
+
+    private static LoadedValue<JSONArray> loadOptionalJsonArray(
+            Context context,
+            String cacheKey,
+            String url
+    ) throws IOException, JSONException {
+        LoadedValue<String> text = loadText(context, cacheKey, url, true);
+        try {
+            return new LoadedValue<>(new JSONArray(text.value), text.fresh);
+        } catch (JSONException failure) {
+            deleteCachedText(context, cacheKey);
+            throw failure;
+        }
+    }
+
+    private static LoadedValue<JSONObject> loadJson(Context context, String cacheKey, String url)""",
+    1,
+)
+
+    catalog.write_text(s)
 
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
