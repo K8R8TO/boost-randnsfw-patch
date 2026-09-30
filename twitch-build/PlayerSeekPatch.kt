@@ -23,6 +23,9 @@ internal val playerSeekPatch = bytecodePatch {
         classDefForEach { classDef ->
             val mutableClass = mutableClassDefBy(classDef)
             mutableClass.methods.forEach { method ->
+                // FIX: Skip abstract/native methods that have no instructions
+                if (method.instructions == null) return@forEach
+                
                 val instructions = method.instructions.toList()
 
                 val rewinds = instructions.withIndex().filter { indexed ->
