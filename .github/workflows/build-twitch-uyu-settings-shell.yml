@@ -59,3 +59,35 @@ jobs:
           name: kizu-v0.3.0-mpp
           path: out/kizu-0.3.0.mpp
           if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: approve-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Kizu build files
+        uses: actions/checkout@v4
+
+      - name: Download Kizu MPP
+        uses: actions/download-artifact@v4
+        with:
+          name: kizu-v0.3.0-mpp
+          path: out
+
+      - name: Publish release and update patches-bundle.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="0.4.${GITHUB_RUN_NUMBER}"
+          TAG="v${VERSION}"
+          cp out/kizu-0.3.0.mpp "kizu-${VERSION}.mpp"
+          gh release create "$TAG" "kizu-${VERSION}.mpp" --title "Kizu Twitch ${VERSION}" --notes "Auto-released after manual approval"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/kizu-${VERSION}.mpp"
+          jq -n --arg v "$VERSION" --arg u "$URL" --arg c "$(date -u +%Y-%m-%dT%H:%M:%S)" '{created_at:$c, description:"PurpleTV features for Twitch", download_url:$u, signature_download_url:"", version:$v}' > patches-bundle.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add patches-bundle.json
+          git commit -m "chore: release ${VERSION} [skip ci]"
+          git push
