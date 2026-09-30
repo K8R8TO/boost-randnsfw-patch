@@ -9,18 +9,21 @@ import io.github.bakwudo.uyu.patches.twitch.notifications.fixNotificationsPatch
 import io.github.bakwudo.uyu.patches.twitch.privacy.privacyPatch
 import io.github.bakwudo.uyu.patches.twitch.settings.settingsPatch
 import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
-import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
-val enhancementPatch = bytecodePatch {
-    name = "Twitch Enhancement"
-    description = "Kizu features for Twitch: ad blocking, 3rd party emotes, login fixes, and privacy."
+@Suppress("unused")
+val twitchEnhancementPatch = bytecodePatch(
+    name = "Twitch Enhancement",
+    description = "Kizu: third-party emotes, ad blocking, privacy, and patched-app " +
+        "login/notification compatibility.",
+) {
     compatibleWith(COMPATIBILITY_TWITCH)
-    dependsOn(sharedExtensionPatch)
-    dependsOn(blockAdsPatch)
-    dependsOn(hidePromotionsPatch)
-    dependsOn(thirdPartyEmotesPatch)
-    dependsOn(fixLoginPatch)
-    dependsOn(fixNotificationsPatch)
-    dependsOn(privacyPatch)
-    dependsOn(settingsPatch)
+    dependsOn(
+        settingsPatch,
+        fixLoginPatch,
+        fixNotificationsPatch,
+        blockAdsPatch,
+        hidePromotionsPatch,
+        thirdPartyEmotesPatch,
+        privacyPatch,
+    )
 }
