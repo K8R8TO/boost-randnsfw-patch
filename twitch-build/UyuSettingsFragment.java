@@ -15,6 +15,7 @@ public class UyuSettingsFragment extends PreferenceFragment {
     static final String SECTION_ADS = "ads";
     static final String SECTION_EMOTES = "emotes";
     static final String SECTION_CHAT = "chat";
+    static final String SECTION_PRIVACY = "privacy";
 
     private static final String ARG_SECTION = "section";
     private String section;
@@ -43,17 +44,28 @@ public class UyuSettingsFragment extends PreferenceFragment {
         else if (SECTION_ADS.equals(section)) addAdsSettings(screen);
         else if (SECTION_EMOTES.equals(section)) addEmoteSettings(screen);
         else if (SECTION_CHAT.equals(section)) addChatSettings(screen);
+        else if (SECTION_PRIVACY.equals(section)) addPrivacySettings(screen);
     }
 
     private void addSectionLinks(PreferenceScreen screen) {
-        addSectionLink(screen, SECTION_ADS, "Ad blocking");
-        addSectionLink(screen, SECTION_EMOTES, "7TV, BTTV and animated emotes");
-        addSectionLink(screen, SECTION_CHAT, "Chat controls");
+        addSectionLink(screen, SECTION_ADS, "Ad blocking",
+                "Live ad blocking through Kizu's manifest proxy.");
+        addSectionLink(screen, SECTION_EMOTES, "7TV, BTTV, FFZ and animated emotes",
+                "Third-party emotes in live chat.");
+        addSectionLink(screen, SECTION_CHAT, "Chat controls",
+                "Current Kizu chat controls.");
+        addSectionLink(screen, SECTION_PRIVACY, "Privacy",
+                "Disable Twitch measurement and crash reporting components.");
     }
 
-    private void addSectionLink(PreferenceScreen screen, String linkedSection, String summary) {
+    private void addSectionLink(
+            PreferenceScreen screen,
+            String linkedSection,
+            String title,
+            String summary
+    ) {
         Preference preference = new Preference(screen.getContext());
-        preference.setTitle(title(linkedSection));
+        preference.setTitle(title);
         preference.setSummary(summary);
         preference.setOnPreferenceClickListener(clicked -> {
             Activity activity = getActivity();
@@ -65,12 +77,7 @@ public class UyuSettingsFragment extends PreferenceFragment {
 
     private void addAdsSettings(PreferenceScreen screen) {
         addSwitch(screen, Settings.BLOCK_ADS, "Block ads",
-                "Uses Kizu's Twitch ad-blocking hooks. Turn this off to restore normal ad behavior.");
-
-        Preference note = new Preference(screen.getContext());
-        note.setSummary("Proxy URL control is temporarily hidden because the previous settings screen crashed.");
-        note.setSelectable(false);
-        screen.addPreference(note);
+                "Uses Kizu's live manifest proxy. Turn this off to restore normal ad behavior.");
     }
 
     private void addEmoteSettings(PreferenceScreen screen) {
@@ -78,13 +85,22 @@ public class UyuSettingsFragment extends PreferenceFragment {
                 "Show global and channel 7TV emotes in live chat.");
         addSwitch(screen, Settings.EMOTES_BTTV, "BTTV emotes",
                 "Show global and channel BetterTTV emotes in live chat.");
+        addSwitch(screen, Settings.EMOTES_FFZ, "FFZ emotes",
+                "Show global and channel FrankerFaceZ emotes in live chat.");
         addSwitch(screen, Settings.EMOTES_ANIMATED, "Animated emotes",
-                "Play animated third-party emotes. Turn this off to show a static frame.");
+                "Play animated third-party emotes. Turn this off to render a static frame.");
     }
 
     private void addChatSettings(PreferenceScreen screen) {
         addSwitch(screen, Settings.HIDE_CHAT_BITS_BUTTON, "Hide Bits button",
                 "Hide the Bits button beside Twitch's chat controls.");
+    }
+
+    private void addPrivacySettings(PreferenceScreen screen) {
+        addSwitch(screen, Settings.DISABLE_COMSCORE, "Disable Comscore",
+                "Prevent Twitch's Comscore measurement component from starting. Restart Twitch after changing this.");
+        addSwitch(screen, Settings.DISABLE_BUGSNAG, "Disable crash reporting",
+                "Prevent Twitch 31.3.1's Firebase Crashlytics crash reporting from collecting reports. Restart Twitch after changing this.");
     }
 
     @Override
@@ -118,6 +134,7 @@ public class UyuSettingsFragment extends PreferenceFragment {
             case SECTION_ADS: return "Ads";
             case SECTION_EMOTES: return "Emotes";
             case SECTION_CHAT: return "Chat";
+            case SECTION_PRIVACY: return "Privacy";
             default: return SettingsPatch.TITLE;
         }
     }
