@@ -1,0 +1,79 @@
+name: Build Twitch Uyu Settings Shell
+
+on:
+  push:
+    branches:
+      - twitch-uyu-settings-shell
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout temp branch
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Checkout uyu
+        uses: actions/checkout@v4
+        with:
+          repository: bakwudo/uyu
+          ref: main
+          path: uyu
+
+      - name: Apply custom settings shell
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cp twitch-build/Settings.java             uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/Settings.java
+          cp twitch-build/UyuSettingsFragment.java             uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/UyuSettingsFragment.java
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("uyu/extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings/SettingsPatch.java")
+          s = p.read_text()
+          s = s.replace('public static final String TITLE = "uyu";',
+                        'public static final String TITLE = "Morphe Twitch";')
+          p.write_text(s)
+
+          g = Path("uyu/patches/build.gradle.kts")
+          s = g.read_text()
+          if not s.startswith('version = "0.1.0-settings-shell"'):
+              s = 'version = "0.1.0-settings-shell"\n\n' + s
+          s = s.replace(
+              'description = "Patches for Twitch: channel points auto claim, Niconico-style scrolling comments and ad blocking."',
+              'description = "Custom Twitch Morphe bundle with an in-app runtime settings shell, based on uyu."'
+          )
+          g.write_text(s)
+          PY
+
+      - name: Build MPP
+        working-directory: uyu
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew :patches:buildAndroid --no-daemon --stacktrace
+
+      - name: Collect MPP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          cp uyu/patches/build/libs/patches-*.mpp out/
+          sha256sum out/*.mpp
+
+      - name: Upload MPP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: twitch-uyu-settings-shell-mpp
+          path: out/*.mpp
+          if-no-files-found: error
