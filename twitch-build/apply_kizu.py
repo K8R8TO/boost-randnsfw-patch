@@ -129,13 +129,13 @@ s, count = re.subn(
 if count != 1:
     raise RuntimeError("Could not patch EmoteCatalog.find")
 
-    s = s.replace(
+s = s.replace(
     "    private static final class ChannelState {\n        final ProviderState sevenTv = new ProviderState();\n        final ProviderState betterTtv = new ProviderState();\n    }",
     "    private static final class ChannelState {\n        final ProviderState sevenTv = new ProviderState();\n        final ProviderState betterTtv = new ProviderState();\n        final ProviderState ffz = new ProviderState();\n    }",
     1,
 )
 
-    s = s.replace(
+s = s.replace(
     "    private void schedule",
     """    private void loadGlobalFfz(Context context) {
         boolean updated = false;
@@ -181,7 +181,7 @@ if count != 1:
     1,
 )
 
-    s = s.replace(
+s = s.replace(
     "    private static LoadedValue<JSONObject> loadJson(Context context, String cacheKey, String url)",
     """    private static void parseFfzArray(JSONArray emotes, Map<String, Emote> target) {
         if (emotes == null) return;
