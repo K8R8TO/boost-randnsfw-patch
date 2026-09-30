@@ -218,7 +218,7 @@ s = s.replace(
     1,
 )
 
-    catalog.write_text(s)
+catalog.write_text(s)
 
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
