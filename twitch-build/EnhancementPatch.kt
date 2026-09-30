@@ -12,6 +12,8 @@ import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITC
 import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
 val enhancementPatch = bytecodePatch {
+    name = "Twitch Enhancement"
+    description = "Kizu features for Twitch"
     compatibleWith(COMPATIBILITY_TWITCH)
     dependsOn(sharedExtensionPatch)
     dependsOn(blockAdsPatch)
