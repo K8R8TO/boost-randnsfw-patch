@@ -199,7 +199,7 @@ p.write_text(p.read_text().replace('rootProject.name = "uyu"', 'rootProject.name
 p = ROOT / "patches/build.gradle.kts"
 s = p.read_text()
 s = s.replace('group = "io.github.bakwudo.uyu"', 'group = "io.github.k8r8to.kizu"')
-s = 'version = "0.2.0"\n\n' + re.sub(r'^version = ".*?"\n\n', '', s)
+s = 'version = "0.2.1"\n\n' + re.sub(r'^version = ".*?"\n\n', '', s)
 s = s.replace('name = "uyu"', 'name = "Kizu"')
 s = s.replace(
     'description = "Patches for Twitch: channel points auto claim, Niconico-style scrolling comments and ad blocking."',
