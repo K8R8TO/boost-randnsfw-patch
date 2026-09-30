@@ -1,6 +1,7 @@
 package io.github.bakwudo.uyu.patches.twitch.player
 
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
+import app.morphe.patcher.extensions.InstructionExtensions.instructions
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
@@ -23,7 +24,7 @@ internal val playerSeekPatch = bytecodePatch {
                 val instructions = method.instructions.toList()
                 val constants = instructions.withIndex().filter { (_, instruction) ->
                     val literal = (instruction as? NarrowLiteralInstruction)?.narrowLiteral
-                    literal == -10L || literal == 30L
+                    literal == -10 || literal == 30
                 }
                 if (constants.isEmpty()) return@forEach
                 val hasIntegerBox = instructions.any { instruction ->
@@ -40,10 +41,10 @@ internal val playerSeekPatch = bytecodePatch {
                 }
 
                 val rewinds = constants.filter {
-                    (it.value as NarrowLiteralInstruction).narrowLiteral == -10L
+                    (it.value as NarrowLiteralInstruction).narrowLiteral == -10
                 }
                 val forwards = constants.filter {
-                    (it.value as NarrowLiteralInstruction).narrowLiteral == 30L
+                    (it.value as NarrowLiteralInstruction).narrowLiteral == 30
                 }
                 if (rewinds.size != 1 || forwards.size != 1) return@forEach
                 candidates++
