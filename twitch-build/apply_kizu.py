@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import re
 import shutil
@@ -271,6 +272,7 @@ if "-keep class app.morphe.extension.twitch.emotes.** { *; }" not in s:
     s += "\n# Kizu third-party emote renderer (adapted from hoomans-morphe-patches).\n"
     s += "-keep class app.morphe.extension.twitch.emotes.** { *; }\n"
 if "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }" not in s:
+    s += "\n# Kizu settings classes.\n"
     s += "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }\n"
 proguard.write_text(s)
 
@@ -315,7 +317,7 @@ for path, symbol in internal_patches:
     s = path.read_text()
     pattern = rf'@Suppress\("unused"\)\nval {symbol} = bytecodePatch\(.*?\n\) \{{\n    compatibleWith'
     replacement = f'internal val {symbol} = bytecodePatch {{\n    compatibleWith'
-    s, count = re.subn(pattern, replacement, s, count=1, flags=re.S)
+    s, count = re.subn(pattern, replacement, count=1, flags=re.S)
     if count != 1:
         raise RuntimeError(f"Could not internalize {symbol}")
     path.write_text(s)
@@ -327,7 +329,7 @@ p.write_text(p.read_text().replace('rootProject.name = "uyu"', 'rootProject.name
 p = ROOT / "patches/build.gradle.kts"
 s = p.read_text()
 s = s.replace('group = "io.github.bakwudo.uyu"', 'group = "io.github.k8r8to.kizu"')
-s = 'version = "0.3.0"\n\n' + re.sub(r'^version = ".*?"\n\n', '', s)
+s = 'version = "' + os.environ.get("KIZU_VERSION", "0.3.0") + '"\n\n' + re.sub(r'^version = ".*?"\n\n', '', s)
 s = s.replace('name = "uyu"', 'name = "Kizu"')
 s = s.replace(
     'description = "Patches for Twitch: channel points auto claim, Niconico-style scrolling comments and ad blocking."',
