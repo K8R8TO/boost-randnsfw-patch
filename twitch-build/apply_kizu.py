@@ -22,6 +22,7 @@ if old not in proxy_text:
 stream_proxy.write_text(proxy_text.replace(old, new, 1))
 (settings_dst / "Settings.java").write_text(Path("twitch-build/Settings.java").read_text())
 (settings_dst / "UyuSettingsFragment.java").write_text(Path("twitch-build/UyuSettingsFragment.java").read_text())
+(settings_dst / "PrivacySupport.java").write_text(Path("twitch-build/PrivacySupport.java").read_text())
 
 # Add Kizu's umbrella patch.
 enhancement_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement"
@@ -33,6 +34,10 @@ emote_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/
 emote_patch_dst.mkdir(parents=True, exist_ok=True)
 (emote_patch_dst / "Fingerprints.kt").write_text(Path("twitch-build/EmoteFingerprints.kt").read_text())
 (emote_patch_dst / "ThirdPartyEmotesPatch.kt").write_text(Path("twitch-build/ThirdPartyEmotesPatch.kt").read_text())
+
+privacy_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/privacy"
+privacy_patch_dst.mkdir(parents=True, exist_ok=True)
+(privacy_patch_dst / "PrivacyPatch.kt").write_text(Path("twitch-build/PrivacyPatch.kt").read_text())
 
 # Copy the proven 7TV/BTTV renderer from hoomans-morphe-patches.
 donor_emotes = DONOR / "extensions/twitch/src/main/java/app/morphe/extension/twitch/emotes"
@@ -153,7 +158,8 @@ support.write_text(s)
 # Keep the copied donor classes when R8 builds the extension.
 proguard = ROOT / "extensions/proguard-rules.pro"
 s = proguard.read_text()
-if "-keep class app.morphe.extension.twitch.emotes.** { *; }" not in s:
+if "-keep class app.morphe.extension.twitch.emotes.** { *; }
+-keep class io.github.bakwudo.uyu.extension.settings.** { *; }" not in s:
     s += "\n# Kizu third-party emote renderer (adapted from hoomans-morphe-patches).\n"
     s += "-keep class app.morphe.extension.twitch.emotes.** { *; }\n"
 proguard.write_text(s)
@@ -211,7 +217,7 @@ p.write_text(p.read_text().replace('rootProject.name = "uyu"', 'rootProject.name
 p = ROOT / "patches/build.gradle.kts"
 s = p.read_text()
 s = s.replace('group = "io.github.bakwudo.uyu"', 'group = "io.github.k8r8to.kizu"')
-s = 'version = "0.2.3"\n\n' + re.sub(r'^version = ".*?"\n\n', '', s)
+s = 'version = "0.3.0"\n\n' + re.sub(r'^version = ".*?"\n\n', '', s)
 s = s.replace('name = "uyu"', 'name = "Kizu"')
 s = s.replace(
     'description = "Patches for Twitch: channel points auto claim, Niconico-style scrolling comments and ad blocking."',
