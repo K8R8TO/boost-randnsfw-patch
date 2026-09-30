@@ -38,8 +38,8 @@ internal val showDeletedMessagesPatch = bytecodePatch {
             constructor.instructions.lastIndex,
             """
                 invoke-static {}, $SUPPORT->shouldShowDeletedMessages()Z
-                move-result v0
-                if-eqz v0, :kizu_deleted_constructor_done
+                move-result p3
+                if-eqz p3, :kizu_deleted_constructor_done
                 const/4 p3, 0x1
                 iput-boolean p3, p0, $accessField
                 :kizu_deleted_constructor_done
