@@ -267,10 +267,11 @@ support.write_text(s)
 # Keep the copied donor classes when R8 builds the extension.
 proguard = ROOT / "extensions/proguard-rules.pro"
 s = proguard.read_text()
-if "-keep class app.morphe.extension.twitch.emotes.** { *; }
--keep class io.github.bakwudo.uyu.extension.settings.** { *; }" not in s:
+if "-keep class app.morphe.extension.twitch.emotes.** { *; }" not in s:
     s += "\n# Kizu third-party emote renderer (adapted from hoomans-morphe-patches).\n"
     s += "-keep class app.morphe.extension.twitch.emotes.** { *; }\n"
+if "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }" not in s:
+    s += "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }\n"
 proguard.write_text(s)
 
 # Remove uyu features that are not part of Kizu's one-patch surface.
