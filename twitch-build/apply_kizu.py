@@ -317,7 +317,7 @@ for path, symbol in internal_patches:
     s = path.read_text()
     pattern = rf'@Suppress\("unused"\)\nval {symbol} = bytecodePatch\(.*?\n\) \{{\n    compatibleWith'
     replacement = f'internal val {symbol} = bytecodePatch {{\n    compatibleWith'
-    s, count = re.subn(pattern, replacement, count=1, flags=re.S)
+    s, count = re.subn(pattern, replacement, s, count=1, flags=re.S)
     if count != 1:
         raise RuntimeError(f"Could not internalize {symbol}")
     path.write_text(s)
