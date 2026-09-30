@@ -17,6 +17,7 @@ private const val CHAT_ITEM = "Liop;"
 private const val TEXT_VIEW = "Landroid/widget/TextView;"
 private const val CHAR_SEQUENCE = "Ljava/lang/CharSequence;"
 private const val BUFFER_TYPE = "Landroid/widget/TextView\$BufferType;"
+private const val CHAT_SUPPORT = "Lio/github/bakwudo/uyu/extension/chat/ChatSupport;"
 
 internal val thirdPartyEmotesPatch = bytecodePatch {
     compatibleWith(COMPATIBILITY_TWITCH)
@@ -79,7 +80,10 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
         val textViewRegister = registers.registerC
         bindMethod.addInstructions(
             textCall.index + 1,
-            "invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)V",
+            """
+            invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)V
+            invoke-static { v$textViewRegister, p1 }, $CHAT_SUPPORT->decorateTimestamp(Landroid/widget/TextView;Ljava/lang/Object;)V
+            """,
         )
     }
 }
