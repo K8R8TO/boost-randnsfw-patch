@@ -56,6 +56,9 @@ jobs:
           test -n "$MPP"
           cp "$MPP" out/kizu.mpp
           cp uyu/patches-list.json out/patches-list.json
+          PATCH_COUNT="$(jq '.patches | length' out/patches-list.json)"
+          echo "Generated patch count: $PATCH_COUNT"
+          test "$PATCH_COUNT" -gt 0
           sha256sum out/kizu.mpp
           sha256sum out/patches-list.json
 
