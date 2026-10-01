@@ -32,9 +32,54 @@ public final class ChatSupport {
 
     private ChatSupport() {}
 
+    private static final String DEBUG_TAG = "KizuDebug";
+
+    /** Logs view ids under {@code root}. Off unless: adb shell setprop log.tag.KizuDebug DEBUG */
+    private static void dumpViews(View root) {
+        try {
+            if (!android.util.Log.isLoggable(DEBUG_TAG, android.util.Log.DEBUG)) return;
+            StringBuilder out = new StringBuilder();
+            out.append("root ").append(root.getClass().getName()).append(" id=")
+                    .append(debugId(root)).append('\n');
+            dumpTree(root, 0, out, new int[] {0});
+            String text = out.toString();
+            for (int i = 0; i < text.length(); i += 3000) {
+                android.util.Log.d(DEBUG_TAG, text.substring(i, Math.min(text.length(), i + 3000)));
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void dumpTree(View view, int depth, StringBuilder out, int[] count) {
+        if (count[0]++ > 600 || depth > 14) return;
+        String id = debugId(view);
+        if (!id.isEmpty() || view instanceof ViewGroup) {
+            for (int i = 0; i < depth; i++) out.append(' ');
+            out.append(view.getClass().getSimpleName());
+            if (!id.isEmpty()) out.append(" #").append(id);
+            if (view.isClickable()) out.append(" clickable");
+            out.append(" vis=").append(view.getVisibility()).append('\n');
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                dumpTree(group.getChildAt(i), depth + 1, out, count);
+            }
+        }
+    }
+
+    private static String debugId(View view) {
+        try {
+            return view.getId() == View.NO_ID ? ""
+                    : view.getResources().getResourceEntryName(view.getId());
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
     public static void onViewCreated(View root) {
         if (root == null) return;
         try {
+            dumpViews(root);
             EmoteInputSupport.onViewCreated(root);
             root.post(() -> {
                 try {
