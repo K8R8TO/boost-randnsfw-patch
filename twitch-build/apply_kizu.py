@@ -574,6 +574,72 @@ for path, symbol in internal_patches:
         raise RuntimeError(f"Could not internalize {symbol}")
     path.write_text(s)
 
+# --- Emote picker (Kizu third-party emotes in the native picker) ---------------
+
+# Copy the picker fingerprint + patch into the emotes package.
+(emote_patch_dst / "EmotePickerFingerprints.kt").write_text(
+    Path("twitch-build/EmotePickerFingerprints.kt").read_text()
+)
+(emote_patch_dst / "EmotePickerPatch.kt").write_text(
+    Path("twitch-build/EmotePickerPatch.kt").read_text()
+)
+
+# Copy the picker bridge into the emote extension package.
+bridge_src = Path("twitch-build/EmotePickerBridge.java")
+bridge_dst = emote_ext_dst / "EmotePickerBridge.java"
+bridge_dst.write_text(bridge_src.read_text())
+
+# Add a "get all emotes for channel" accessor to the catalog so the picker
+# bridge can pull the full set (chat-side find() only does per-name lookup).
+_picker_catalog = emote_ext_dst / "EmoteCatalog.java"
+_s = _picker_catalog.read_text()
+if "getAllForChannel" not in _s:
+    _needle = "    private void schedule"
+    if _needle not in _s:
+        raise RuntimeError("EmoteCatalog: could not find schedule() to hook picker accessor.")
+    _accessor = """    public java.util.List<Emote> getAllForChannel(String channelId) {
+        java.util.List<Emote> out = new java.util.ArrayList<>();
+        if (channelId != null) {
+            ChannelState channel = getChannel(channelId, false);
+            if (channel != null) {
+                out.addAll(channel.sevenTv.emotes.values());
+                out.addAll(channel.betterTtv.emotes.values());
+                out.addAll(channel.ffz.emotes.values());
+            }
+        }
+        out.addAll(globalSevenTv.emotes.values());
+        out.addAll(globalBetterTtv.emotes.values());
+        out.addAll(globalFfz.emotes.values());
+        return out;
+    }
+
+    private void schedule"""
+    _s = _s.replace(_needle, _accessor, 1)
+    _picker_catalog.write_text(_s)
+
+# Register the picker patch as a dependency of the umbrella enhancement patch.
+_enhancement = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement/EnhancementPatch.kt"
+_es = _enhancement.read_text()
+if "thirdPartyEmotePickerPatch" not in _es:
+    _es = _es.replace(
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n"
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
+    )
+    _es = _es.replace(
+        "        thirdPartyEmotesPatch,\n",
+        "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerPatch,\n",
+    )
+    _enhancement.write_text(_es)
+
+# Keep the picker bridge class when R8 builds the extension.
+_picker_proguard = ROOT / "extensions/proguard-rules.pro"
+_ps = _picker_proguard.read_text()
+if "-keep class app.morphe.extension.twitch.emotes.EmotePickerBridge" not in _ps:
+    _ps += "\n# Kizu emote picker runtime bridge (uses reflection on Twitch model classes).\n"
+    _ps += "-keep class app.morphe.extension.twitch.emotes.EmotePickerBridge { *; }\n"
+_picker_proguard.write_text(_ps)
+
 # Project / bundle identity.
 p = ROOT / "settings.gradle.kts"
 p.write_text(p.read_text().replace('rootProject.name = "uyu"', 'rootProject.name = "kizu"'))
