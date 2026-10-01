@@ -29,7 +29,7 @@ internal val thirdPartyEmoteAutocompletePatch = bytecodePatch {
 
         method.addInstructions(
             0,
-            "invoke-static { p1 }, $BRIDGE->addAutocomplete(Ljava/lang/Object;)V",
+            "invoke-static {p1}, $BRIDGE->addAutocomplete(Ljava/lang/Object;)V",
         )
     }
 }
