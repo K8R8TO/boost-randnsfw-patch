@@ -37,7 +37,7 @@ internal val thirdPartyEmotePickerUrlPatch = bytecodePatch {
         target.addInstructions(
             0,
             """
-                invoke-static { p0 }, $PICKER_BRIDGE->getEmoteUrl(Ljava/lang/String;)Ljava/lang/String;
+                invoke-static {p0}, $PICKER_BRIDGE->getEmoteUrl(Ljava/lang/String;)Ljava/lang/String;
                 move-result-object p2
                 if-eqz p2, :kizu_emote_url_fallback
                 return-object p2
