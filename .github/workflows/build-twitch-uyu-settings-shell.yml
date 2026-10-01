@@ -42,24 +42,28 @@ jobs:
           KIZU_VERSION: 0.4.${{ github.run_number }}
         run: python3 twitch-build/apply_kizu.py
 
-      - name: Build Kizu MPP
+      - name: Build Kizu MPP and patch index
         working-directory: uyu
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew :patches:buildAndroid --no-daemon --stacktrace
+        run: ./gradlew :patches:buildAndroid generatePatchesList --no-daemon --stacktrace
 
       - name: Collect Kizu MPP
         run: |
           mkdir -p out
           cp uyu/patches/build/libs/kizu-*.mpp out/kizu.mpp
+          cp uyu/patches-list.json out/patches-list.json
           sha256sum out/kizu.mpp
+          sha256sum out/patches-list.json
 
       - name: Upload Kizu MPP
         uses: actions/upload-artifact@v4
         with:
-          name: kizu-mpp
-          path: out/kizu.mpp
+          name: kizu-release-files
+          path: |
+            out/kizu.mpp
+            out/patches-list.json
           if-no-files-found: error
 
   release:
@@ -72,10 +76,10 @@ jobs:
       - name: Checkout Kizu build files
         uses: actions/checkout@v4
 
-      - name: Download Kizu MPP
+      - name: Download Kizu release files
         uses: actions/download-artifact@v4
         with:
-          name: kizu-mpp
+          name: kizu-release-files
           path: out
 
       - name: Publish release and update patches-bundle.json
@@ -85,9 +89,10 @@ jobs:
           VERSION="0.4.${GITHUB_RUN_NUMBER}"
           TAG="v${VERSION}"
           cp out/kizu.mpp "kizu-${VERSION}.mpp"
+          cp out/patches-list.json patches-list.json
           gh release create "$TAG" "kizu-${VERSION}.mpp" --title "Kizu Twitch ${VERSION}" --notes "Auto-released after manual approval"
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/kizu-${VERSION}.mpp"
-          jq -n --arg v "$VERSION" --arg u "$URL" --arg c "$(date -u +%Y-%m-%dT%H:%M:%S)" '{created_at:$c, description:"PurpleTV features for Twitch", download_url:$u, signature_download_url:"", version:$v}' > patches-bundle.json
+          jq -n --arg v "$VERSION" --arg u "$URL" --arg c "$(date -u +%Y-%m-%dT%H:%M:%S)" '{created_at:$c, description:"Kizu enhancements for Twitch", download_url:$u, signature_download_url:"", version:$v}' > patches-bundle.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add patches-bundle.json
