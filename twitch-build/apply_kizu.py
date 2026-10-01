@@ -723,7 +723,8 @@ if "autoClaimChannelPointsPatch" not in _es:
         "import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch\n",
         "import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch\n"
         "import io.github.bakwudo.uyu.patches.twitch.channelpoints.autoClaimChannelPointsPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.danmaku.danmakuCommentsPatch\n",
+        "import io.github.bakwudo.uyu.patches.twitch.danmaku.danmakuCommentsPatch\n"
+        "import io.github.bakwudo.uyu.patches.twitch.separateapp.separateAppPatch\n",
         1,
     )
     _es = _es.replace(
