@@ -42,6 +42,76 @@ shutil.copytree(donor_emotes, emote_ext_dst)
 catalog = emote_ext_dst / "EmoteCatalog.java"
 s = catalog.read_text()
 
+_old_7tv_loader = """    private void loadChannelSevenTv(Context context, String channelId, ChannelState channel) {
+        boolean updated = false;
+        try {
+            LoadedValue<JSONObject> response = loadOptionalJson(
+                    context,
+                    "7tv-channel-" + channelId,
+                    "https://7tv.io/v3/users/twitch/" + channelId
+            );
+            Map<String, Emote> loaded = new LinkedHashMap<>();
+            JSONObject set = response.value.optJSONObject("emote_set");
+            if (set != null) {
+                parseSevenTv(set, loaded);
+            }
+            channel.sevenTv.publish(loaded, response.fresh);
+            updated = true;
+        } catch (Exception ignored) {
+            channel.sevenTv.failed();
+        } finally {
+            channel.sevenTv.loading.set(false);
+        }
+        if (updated) {
+            onUpdated.accept(channelId);
+        }
+    }"""
+_new_7tv_loader = """    private void loadChannelSevenTv(Context context, String channelId, ChannelState channel) {
+        boolean updated = false;
+        try {
+            LoadedValue<JSONObject> user = loadOptionalJson(
+                    context,
+                    "7tv-user-" + channelId,
+                    "https://7tv.io/v3/users/twitch/" + channelId
+            );
+            JSONObject userObject = user.value;
+
+            // 7TV may expose only emote_set_id in the Twitch-user response.
+            // Keep compatibility with older responses that embedded emote_set.
+            JSONObject embeddedSet = userObject.optJSONObject("emote_set");
+            String setId = userObject.optString("emote_set_id", "");
+            if (setId.isEmpty() && embeddedSet != null) {
+                setId = embeddedSet.optString("id", "");
+            }
+
+            Map<String, Emote> loaded = new LinkedHashMap<>();
+            boolean fresh = user.fresh;
+            if (embeddedSet != null) {
+                parseSevenTv(embeddedSet, loaded);
+            } else if (!setId.isEmpty()) {
+                LoadedValue<JSONObject> set = loadOptionalJson(
+                        context,
+                        "7tv-emote-set-" + setId,
+                        "https://7tv.io/v3/emote-sets/" + setId
+                );
+                parseSevenTv(set.value, loaded);
+                fresh = user.fresh && set.fresh;
+            }
+
+            channel.sevenTv.publish(loaded, fresh);
+            updated = true;
+        } catch (Exception ignored) {
+            channel.sevenTv.failed();
+        } finally {
+            channel.sevenTv.loading.set(false);
+        }
+        if (updated) {
+            onUpdated.accept(channelId);
+        }
+    }"""
+if _old_7tv_loader not in s:
+    raise RuntimeError("7TV loader block changed; cannot apply current API compatibility fix safely.")
+s = s.replace(_old_7tv_loader, _new_7tv_loader, 1)
 old_bttv = """    private static void parseBetterTtvArray(JSONArray emotes, Map<String, Emote> target) {
         if (emotes == null) {
             return;
