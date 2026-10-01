@@ -728,7 +728,7 @@ if "autoClaimChannelPointsPatch" not in _es:
     )
     _es = _es.replace(
         "        settingsPatch,\n",
-        "        settingsPatch,\n        autoClaimChannelPointsPatch,\n        danmakuCommentsPatch,\n",
+        "        settingsPatch,\n        autoClaimChannelPointsPatch,\n        danmakuCommentsPatch,\n        separateAppPatch,\n",
         1,
     )
 if "thirdPartyEmotePickerPatch" not in _es:
