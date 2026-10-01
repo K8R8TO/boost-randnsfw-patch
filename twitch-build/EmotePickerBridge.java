@@ -28,10 +28,28 @@ public final class EmotePickerBridge {
     private EmotePickerBridge() {
     }
 
+    private static volatile String currentChannelId;
+
+    /** Called when Twitch opens the picker so channel-specific third-party emotes can be included. */
+    public static void onPickerOpened(Object tuid) {
+        if (tuid == null) {
+            currentChannelId = null;
+            return;
+        }
+        try {
+            Method toInt = tuid.getClass().getMethod("toInt");
+            Object result = toInt.invoke(tuid);
+            currentChannelId = result == null ? null : String.valueOf(result);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not resolve picker channel ID", t);
+            currentChannelId = null;
+        }
+    }
+
     /** Called from the patched EmotePickerPresenter.G2 just before it returns. */
     public static Object mergeGlobal(Object mtf) {
         try {
-            List<Entry> entries = loadGlobals();
+            List<Entry> entries = loadForChannel(currentChannelId);
             if (entries.isEmpty()) {
                 return mtf;
             }
@@ -68,12 +86,12 @@ public final class EmotePickerBridge {
         }
     }
 
-    private static List<Entry> loadGlobals() {
+    private static List<Entry> loadForChannel(String channelId) {
         try {
             Class<?> catalogClass = Class.forName(
                     CATALOG, true, EmotePickerBridge.class.getClassLoader());
             Method all = catalogClass.getMethod("getAllForChannel", String.class);
-            Object result = all.invoke(null, (String) null);
+            Object result = all.invoke(null, channelId);
             if (!(result instanceof List)) {
                 return Collections.emptyList();
             }
