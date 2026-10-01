@@ -416,8 +416,8 @@ catalog.write_text(s)
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
 s = s.replace(
-    "import android.os.Build;\\n",
-    "import android.os.Build;\\n\\nimport io.github.bakwudo.uyu.extension.settings.Settings;\\n",
+    "import android.os.Build;\n",
+    "import android.os.Build;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\n",
     1,
 )
 
