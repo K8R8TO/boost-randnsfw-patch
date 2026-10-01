@@ -368,9 +368,59 @@ s = s.replace(
 )
 
 catalog.write_text(s)
+emote = emote_ext_dst / "Emote.java"
+s = emote.read_text()
+old_emote = """final class Emote {
+    final String name;
+    final String url;
+    final boolean animated;
+
+    Emote(String name, String url, boolean animated) {
+        this.name = name;
+        this.url = url;
+        this.animated = animated;
+    }
+}"""
+new_emote = """final class Emote {
+    final String name;
+    final String url;
+    final boolean animated;
+    final boolean zeroWidth;
+
+    Emote(String name, String url, boolean animated) {
+        this(name, url, animated, false);
+    }
+
+    Emote(String name, String url, boolean animated, boolean zeroWidth) {
+        this.name = name;
+        this.url = url;
+        this.animated = animated;
+        this.zeroWidth = zeroWidth;
+    }
+}"""
+if old_emote not in s:
+    raise RuntimeError("Emote.java donor shape changed.")
+s = s.replace(old_emote, new_emote, 1)
+emote.write_text(s)
+
+catalog = emote_ext_dst / "EmoteCatalog.java"
+s = catalog.read_text()
+old_seven = 'target.put(name, new Emote(name, url, data != null && data.optBoolean("animated", false)));'
+new_seven = 'target.put(name, new Emote(name, url, data != null && data.optBoolean("animated", false),\\n                    (item.optInt("flags", 0) & (1 << 8)) != 0));'
+if old_seven not in s:
+    raise RuntimeError("SevenTV emote parse line changed.")
+s = s.replace(old_seven, new_seven, 1)
+catalog.write_text(s)
+
 
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
+s = s.replace(
+    "import android.os.Build;\\n",
+    "import android.os.Build;\\n\\nimport io.github.bakwudo.uyu.extension.settings.Settings;\\n",
+    1,
+)
+
 
 old_create_drawable = """    Drawable createDrawable(Resources resources, Emote emote) {
         ImageData data = memory.get(emote.url);
@@ -387,6 +437,15 @@ new_create_drawable = """    Drawable createDrawable(Resources resources, Emote 
         ImageData data = memory.get(emote.url);
         if (data == null) {
             return null;
+        }
+
+        if (data.animatedSource && !Settings.EMOTES_ANIMATED.get() &&
+                data.sourceBytes != null) {
+            try {
+                Bitmap bitmap = decodeBitmap(data.sourceBytes, data.targetDimension);
+                return bitmap == null ? null : new BitmapDrawable(resources, bitmap);
+            } catch (Exception ignored) {
+            }
         }
 
         if (data.animatedSource && data.sourceBytes != null &&
@@ -541,6 +600,32 @@ if old_image_data not in s:
     raise RuntimeError("Current ImageData block changed; cannot apply safely.")
 s = s.replace(old_image_data, new_image_data, 1)
 loader.write_text(s)
+
+span = emote_ext_dst / "CenteredImageSpan.java"
+s = span.read_text()
+old_span_ctor = """    private final Drawable drawable;
+    private final Paint.FontMetricsInt paintMetrics = new Paint.FontMetricsInt();
+
+    CenteredImageSpan(TextView textView, Drawable drawable) {
+        super(ALIGN_BOTTOM);
+        this.drawable = drawable;"""
+new_span_ctor = """    private final Drawable drawable;
+    private final boolean zeroWidth;
+    private final Paint.FontMetricsInt paintMetrics = new Paint.FontMetricsInt();
+
+    CenteredImageSpan(TextView textView, Drawable drawable) {
+        this(textView, drawable, false);
+    }
+
+    CenteredImageSpan(TextView textView, Drawable drawable, boolean zeroWidth) {
+        super(ALIGN_BOTTOM);
+        this.drawable = drawable;
+        this.zeroWidth = zeroWidth;"""
+if old_span_ctor not in s:
+    raise RuntimeError("CenteredImageSpan donor shape changed.")
+s = s.replace(old_span_ctor, new_span_ctor, 1)
+s = s.replace("        return bounds.width();", "        return zeroWidth ? 0 : bounds.width();", 1)
+span.write_text(s)
 
 support = emote_ext_dst / "EmoteSupport.java"
 s = support.read_text()
