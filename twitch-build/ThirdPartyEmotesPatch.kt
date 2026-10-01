@@ -4,16 +4,16 @@ import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
+import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
+import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
 import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
 private const val EXTENSION = "Lapp/morphe/extension/twitch/emotes/EmoteSupport;"
 private const val CHANNEL_CLASS = "Ltv/twitch/android/shared/chat/pub/messages/data/ChannelChatConnectionKey;"
-private const val CHAT_CLASS = "Lj2d;"
-private const val CHAT_ITEM = "Liop;"
 private const val TEXT_VIEW = "Landroid/widget/TextView;"
 private const val CHAR_SEQUENCE = "Ljava/lang/CharSequence;"
 private const val BUFFER_TYPE = "Landroid/widget/TextView\$BufferType;"
@@ -46,14 +46,44 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
             "invoke-static { p1, p2 }, $EXTENSION->onChannelChanged(Ljava/lang/String;Ljava/lang/String;)V",
         )
 
-        val chatClassDef = classDefByOrNull(CHAT_CLASS)
-            ?: throw PatchException("Kizu emotes: exact Twitch 31.3.1 chat class Lj2d was not found.")
-        val chatClass = mutableClassDefBy(chatClassDef)
-        val bindMethod = chatClass.methods.singleOrNull { method ->
-            method.name == "C" &&
-                method.returnType == "V" &&
-                method.parameterTypes.map { it.toString() } == listOf(CHAT_ITEM, "Z")
-        } ?: throw PatchException("Kizu emotes: exact Twitch 31.3.1 chat binder Lj2d.C(Liop,Z)V was not found.")
+        // Locate Twitch's chat-row binder structurally. R8 class/method names are
+        // not stable across Twitch releases, while the MessageRecyclerItem signature and
+        // TextView.setText call provide a useful behavioral fingerprint.
+        val messageClass = MessageRecyclerItemClassFingerprint.classDef
+
+        fun isChatBindMethod(method: Method): Boolean {
+            val instructions = method.implementation?.instructions ?: return false
+            return method.returnType == "V" &&
+                method.parameterTypes.size == 2 &&
+                method.parameterTypes[0].toString() == messageClass.type &&
+                method.parameterTypes[1].toString() == "Z" &&
+                instructions.count { instruction ->
+                    val reference =
+                        (instruction as? ReferenceInstruction)?.reference as? MethodReference
+                    reference?.definingClass == TEXT_VIEW &&
+                        reference.name == "setText" &&
+                        reference.returnType == "V" &&
+                        reference.parameterTypes.map { it.toString() } ==
+                            listOf(CHAR_SEQUENCE, BUFFER_TYPE)
+                } == 1
+        }
+
+        val rowClassDef = classDefByStrings("glideTarget")
+            .singleOrNull { classDef ->
+                val hasContextPin = classDef.methods.any { method ->
+                    method.implementation?.instructions?.any { instruction ->
+                        ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string ==
+                            "getApplicationContext(...)"
+                    } == true
+                }
+                hasContextPin && classDef.methods.any(::isChatBindMethod)
+            } ?: throw PatchException(
+                "Kizu emotes: chat row holder pinned by Glide cleanup was not found uniquely.",
+            )
+
+        val rowClass = mutableClassDefBy(rowClassDef)
+        val bindMethod = rowClass.methods.singleOrNull(::isChatBindMethod)
+            ?: throw PatchException("Kizu emotes: chat row bind method was not found uniquely.")
 
         val textCalls = bindMethod.instructions.withIndex().filter { (_, instruction) ->
             val reference = (instruction as? ReferenceInstruction)?.reference as? MethodReference
@@ -65,10 +95,7 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
         }.toList()
 
         val textCall = textCalls.singleOrNull()
-            ?: throw PatchException(
-                "Kizu emotes: expected exactly one chat TextView.setText(CharSequence, BufferType), found " +
-                    textCalls.size + ".",
-            )
+            ?: throw PatchException("Kizu emotes: expected one chat TextView.setText call.")
 
         val registers = textCall.value as? FiveRegisterInstruction
             ?: throw PatchException("Kizu emotes: chat TextView.setText is not a 35c invoke.")
@@ -79,7 +106,7 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
         val textViewRegister = registers.registerC
         bindMethod.addInstructions(
             textCall.index + 1,
-            "invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)V",
+            "invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)",
         )
     }
 }
