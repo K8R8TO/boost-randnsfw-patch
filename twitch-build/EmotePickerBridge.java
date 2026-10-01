@@ -35,33 +35,13 @@ public final class EmotePickerBridge {
     /** Called when Twitch opens the picker. Prefer the channel captured by the chat connection. */
     public static void onPickerOpened(Object tuid) {
         try {
-            Class<?> supportClass = Class.forName(
-                    SUPPORT,
-                    true,
-                    EmotePickerBridge.class.getClassLoader()
-            );
-            Method current = supportClass.getMethod("getCurrentChannelId");
-            Object value = current.invoke(null);
-            currentChannelId = value == null ? null : String.valueOf(value);
-            if (currentChannelId != null && !currentChannelId.isEmpty()) {
-                return;
-            }
+            String value = EmoteSupport.getCurrentChannelId();
+            currentChannelId = value == null || value.isEmpty() ? null : value;
+            if (currentChannelId != null) return;
         } catch (Throwable t) {
             Log.w(TAG, "Could not read current channel ID from EmoteSupport", t);
         }
-
-        if (tuid == null) {
-            currentChannelId = null;
-            return;
-        }
-        try {
-            Method toInt = tuid.getClass().getMethod("toInt");
-            Object result = toInt.invoke(tuid);
-            currentChannelId = result == null ? null : String.valueOf(result);
-        } catch (Throwable t) {
-            Log.w(TAG, "Could not resolve picker channel ID from Tuid", t);
-            currentChannelId = null;
-        }
+        currentChannelId = null;
     }
 
     /** Called from the patched EmotePickerPresenter.G2 just before it returns. */
@@ -107,24 +87,17 @@ public final class EmotePickerBridge {
 
     private static List<Entry> loadForChannel(String channelId) {
         try {
-            Class<?> supportClass = Class.forName(
-                    CATALOG.replace(".EmotePickerBridge", ".EmoteSupport"),
-                    true,
-                    EmotePickerBridge.class.getClassLoader()
-            );
-            Method all = supportClass.getMethod("getAllForChannel", String.class);
-            Object result = all.invoke(null, channelId);
-            if (!(result instanceof List)) {
-                return Collections.emptyList();
-            }
+            List<Emote> source = EmoteSupport.getAllForChannel(channelId);
+            if (source == null || source.isEmpty()) return Collections.emptyList();
+
             List<Entry> out = new ArrayList<Entry>();
-            for (Object item : (List<?>) result) {
+            for (Emote item : source) {
                 Entry entry = toEntry(item);
                 if (entry != null) out.add(entry);
             }
             return out;
         } catch (Throwable t) {
-            Log.e(TAG, "loadGlobals failed", t);
+            Log.e(TAG, "loadForChannel failed", t);
             return Collections.emptyList();
         }
     }
