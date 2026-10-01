@@ -848,21 +848,6 @@ if "getAllForChannel" not in _ps:
 _enh = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement/EnhancementPatch.kt"
 _es = _enh.read_text()
 
-# Re-enable the tested Uyu channel-points and danmaku patch modules.
-if "autoClaimChannelPointsPatch" not in _es:
-    _es = _es.replace(
-        "import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch\n",
-        "import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.channelpoints.autoClaimChannelPointsPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.danmaku.danmakuCommentsPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.separateapp.separateAppPatch\n",
-        1,
-    )
-    _es = _es.replace(
-        "        settingsPatch,\n",
-        "        settingsPatch,\n        autoClaimChannelPointsPatch,\n        danmakuCommentsPatch,\n        separateAppPatch,\n",
-        1,
-    )
 # Keep all third-party emote patch stages enabled together.
 _import_anchor = "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n"
 _imports = (
