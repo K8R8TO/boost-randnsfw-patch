@@ -48,7 +48,6 @@ shutil.copytree(donor_emotes, emote_ext_dst)
 catalog = emote_ext_dst / "EmoteCatalog.java"
 s = catalog.read_text()
 
-# FIX 1: Correctly parse BTTV's "imageType" instead of looking for a non-existent "animated" boolean
 old_bttv = """    private static void parseBetterTtvArray(JSONArray emotes, Map<String, Emote> target) {
         if (emotes == null) {
             return;
@@ -306,7 +305,6 @@ s = s.replace(
 
 catalog.write_text(s)
 
-# FIX 2: Add bulletproof byte-check fallback for WEBP/GIF in EmoteImageLoader
 loader = emote_ext_dst / "EmoteImageLoader.java"
 s = loader.read_text()
 
@@ -327,8 +325,6 @@ new_create_drawable = """    Drawable createDrawable(Resources resources, Emote 
             return null;
         }
 
-        // Recreate animated drawables from retained encoded bytes. This keeps the
-        // ImageDecoder source alive instead of relying only on ConstantState.
         if (data.animatedSource && data.sourceBytes != null &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
@@ -343,7 +339,6 @@ new_create_drawable = """    Drawable createDrawable(Resources resources, Emote 
                 }
                 return decoded;
             } catch (Exception ignored) {
-                // Fall through to the cached drawable state.
             }
         }
 
@@ -415,7 +410,6 @@ new_decode = """    private static boolean isWebp(byte[] bytes) {
             int height = Math.max(1, decoded.getIntrinsicHeight());
             long estimate = (long) width * height * 4L * 4L + bytes.length;
 
-            // Retain the source bytes even when ConstantState is unavailable.
             return new ImageData(
                     null,
                     state,
@@ -517,7 +511,6 @@ s = s.replace(
 )
 support.write_text(s)
 
-# Keep the copied donor classes when R8 builds the extension.
 proguard = ROOT / "extensions/proguard-rules.pro"
 s = proguard.read_text()
 if "-keep class app.morphe.extension.twitch.emotes.** { *; }" not in s:
@@ -528,7 +521,6 @@ if "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }" not in s:
     s += "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }\n"
 proguard.write_text(s)
 
-# Remove uyu features that are not part of Kizu's one-patch surface.
 for relative in [
     "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/separateapp",
     "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/channelpoints",
@@ -538,7 +530,6 @@ for relative in [
     if path.exists():
         shutil.rmtree(path)
 
-# Visible branding.
 p = settings_dst / "SettingsPatch.java"
 s = p.read_text().replace(
     'public static final String TITLE = "uyu";',
@@ -546,7 +537,6 @@ s = p.read_text().replace(
 )
 p.write_text(s)
 
-# Kizu gets its own preference namespace.
 p = settings_dst / "Setting.java"
 s = p.read_text().replace(
     'public static final String PREFERENCES_NAME = "uyu_settings";',
@@ -554,7 +544,6 @@ s = p.read_text().replace(
 )
 p.write_text(s)
 
-# Hide all helper patches so Morphe exposes only "Twitch Enhancement".
 internal_patches = [
     (ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/ads/BlockAdsPatch.kt",
      "blockAdsPatch"),
@@ -573,72 +562,6 @@ for path, symbol in internal_patches:
     if count != 1:
         raise RuntimeError(f"Could not internalize {symbol}")
     path.write_text(s)
-
-# --- Emote picker (Kizu third-party emotes in the native picker) ---------------
-
-# Copy the picker fingerprint + patch into the emotes package.
-(emote_patch_dst / "EmotePickerFingerprints.kt").write_text(
-    Path("twitch-build/EmotePickerFingerprints.kt").read_text()
-)
-(emote_patch_dst / "EmotePickerPatch.kt").write_text(
-    Path("twitch-build/EmotePickerPatch.kt").read_text()
-)
-
-# Copy the picker bridge into the emote extension package.
-bridge_src = Path("twitch-build/EmotePickerBridge.java")
-bridge_dst = emote_ext_dst / "EmotePickerBridge.java"
-bridge_dst.write_text(bridge_src.read_text())
-
-# Add a "get all emotes for channel" accessor to the catalog so the picker
-# bridge can pull the full set (chat-side find() only does per-name lookup).
-_picker_catalog = emote_ext_dst / "EmoteCatalog.java"
-_s = _picker_catalog.read_text()
-if "getAllForChannel" not in _s:
-    _needle = "    private void schedule"
-    if _needle not in _s:
-        raise RuntimeError("EmoteCatalog: could not find schedule() to hook picker accessor.")
-    _accessor = """    public java.util.List<Emote> getAllForChannel(String channelId) {
-        java.util.List<Emote> out = new java.util.ArrayList<>();
-        if (channelId != null) {
-            ChannelState channel = getChannel(channelId, false);
-            if (channel != null) {
-                out.addAll(channel.sevenTv.emotes.values());
-                out.addAll(channel.betterTtv.emotes.values());
-                out.addAll(channel.ffz.emotes.values());
-            }
-        }
-        out.addAll(globalSevenTv.emotes.values());
-        out.addAll(globalBetterTtv.emotes.values());
-        out.addAll(globalFfz.emotes.values());
-        return out;
-    }
-
-    private void schedule"""
-    _s = _s.replace(_needle, _accessor, 1)
-    _picker_catalog.write_text(_s)
-
-# Register the picker patch as a dependency of the umbrella enhancement patch.
-_enhancement = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement/EnhancementPatch.kt"
-_es = _enhancement.read_text()
-if "thirdPartyEmotePickerPatch" not in _es:
-    _es = _es.replace(
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
-    )
-    _es = _es.replace(
-        "        thirdPartyEmotesPatch,\n",
-        "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerPatch,\n",
-    )
-    _enhancement.write_text(_es)
-
-# Keep the picker bridge class when R8 builds the extension.
-_picker_proguard = ROOT / "extensions/proguard-rules.pro"
-_ps = _picker_proguard.read_text()
-if "-keep class app.morphe.extension.twitch.emotes.EmotePickerBridge" not in _ps:
-    _ps += "\n# Kizu emote picker runtime bridge (uses reflection on Twitch model classes).\n"
-    _ps += "-keep class app.morphe.extension.twitch.emotes.EmotePickerBridge { *; }\n"
-_picker_proguard.write_text(_ps)
 
 # Project / bundle identity.
 p = ROOT / "settings.gradle.kts"
