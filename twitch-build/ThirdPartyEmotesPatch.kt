@@ -67,15 +67,26 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
                 } == 1
         }
 
-        val rowClassDef = classDefByStrings("glideTarget")
-            .singleOrNull { classDef -> classDef.methods.any(::isChatBindMethod) }
+        fun methodSignature(method: Method): String =
+            method.name + "(" + method.parameterTypes.joinToString("") { it.toString() } + ")" + method.returnType
+
+        val candidates = mutableListOf<Pair<String, String>>()
+        classDefForEach { classDef ->
+            classDef.methods
+                .filter(::isChatBindMethod)
+                .forEach { method -> candidates += classDef.type to methodSignature(method) }
+        }
+
+        val uniqueCandidates = candidates.distinct()
+        val selected = uniqueCandidates.singleOrNull()
             ?: throw PatchException(
-                "Kizu emotes: Twitch chat row binder was not found uniquely from glideTarget.",
+                "Kizu emotes: expected one Twitch chat row binder, found " + uniqueCandidates.size + ".",
             )
 
-        val rowClass = mutableClassDefBy(rowClassDef)
-        val bindMethod = rowClass.methods.singleOrNull(::isChatBindMethod)
-            ?: throw PatchException("Kizu emotes: chat row bind method was not found uniquely.")
+        val rowClass = mutableClassDefBy(selected.first)
+        val bindMethod = rowClass.methods.singleOrNull {
+            methodSignature(it) == selected.second && isChatBindMethod(it)
+        } ?: throw PatchException("Kizu emotes: selected chat row bind method disappeared.")
 
         val textCalls = bindMethod.instructions.withIndex().filter { (_, instruction) ->
             val reference = (instruction as? ReferenceInstruction)?.reference as? MethodReference
