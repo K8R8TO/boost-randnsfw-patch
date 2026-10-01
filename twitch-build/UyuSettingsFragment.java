@@ -102,12 +102,9 @@ public class UyuSettingsFragment extends PreferenceFragment {
         if (PatchStatus.blockAds()) {
             addSectionLink(screen, SECTION_ADS, "Video and display ads, proxy");
         }
-        addSectionLink(screen, SECTION_EMOTES, "7TV, BTTV, FFZ and animated emotes",
-                "Third-party emotes in live chat and the emote picker.");
-        addSectionLink(screen, SECTION_CHAT, "Chat controls",
-                "Deleted messages, timestamps and landscape chat settings.");
-        addSectionLink(screen, SECTION_PRIVACY, "Privacy",
-                "Disable Twitch measurement and crash-reporting components.");
+        addSectionLink(screen, SECTION_EMOTES, "7TV, BTTV, FFZ and animated emotes");
+        addSectionLink(screen, SECTION_CHAT, "Chat controls");
+        addSectionLink(screen, SECTION_PRIVACY, "Privacy");
     }
 
     private void addSectionLink(PreferenceScreen screen, String linkedSection, String summary) {
