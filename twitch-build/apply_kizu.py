@@ -165,7 +165,7 @@ s = s.replace(
 )
 s = s.replace(
     "import android.content.Context;\n",
-    "import android.content.Context;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\n",
+    "import android.content.Context;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\nimport io.github.bakwudo.uyu.extension.Utils;\n",
 )
 s = s.replace(
     "        schedule(globalSevenTv, now, () -> loadGlobalSevenTv(applicationContext));\n"
@@ -583,6 +583,10 @@ picker_support = """    public static String getCurrentChannelId() {
 
     public static java.util.List<Emote> getAllForChannel(String channelId) {
         try {
+            Context context = Utils.getContext();
+            if (context != null && channelId != null) {
+                CATALOG.ensureLoaded(context, channelId);
+            }
             return CATALOG.getAllForChannel(channelId);
         } catch (Throwable ignored) {
             return java.util.Collections.emptyList();
