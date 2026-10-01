@@ -6,11 +6,9 @@ import shutil
 ROOT = Path("uyu")
 DONOR = Path("hooman")
 
-# Copy Kizu settings/UI.
 settings_dst = ROOT / "extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/settings"
 settings_dst.mkdir(parents=True, exist_ok=True)
 
-# Kizu ad blocking uses a live manifest proxy by default.
 stream_proxy = ROOT / "extensions/twitch/src/main/java/io/github/bakwudo/uyu/extension/ads/StreamProxy.java"
 proxy_text = stream_proxy.read_text()
 old = 'String proxy = Settings.ADS_PROXY_URL.get().trim();\n        if (proxy.isEmpty()) return usherUri;'
@@ -22,12 +20,10 @@ stream_proxy.write_text(proxy_text.replace(old, new, 1))
 (settings_dst / "UyuSettingsFragment.java").write_text(Path("twitch-build/UyuSettingsFragment.java").read_text())
 (settings_dst / "PrivacySupport.java").write_text(Path("twitch-build/PrivacySupport.java").read_text())
 
-# Add Kizu's umbrella patch.
 enhancement_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement"
 enhancement_dst.mkdir(parents=True, exist_ok=True)
 (enhancement_dst / "EnhancementPatch.kt").write_text(Path("twitch-build/EnhancementPatch.kt").read_text())
 
-# Add Kizu's emote bytecode hook.
 emote_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/emotes"
 emote_patch_dst.mkdir(parents=True, exist_ok=True)
 (emote_patch_dst / "Fingerprints.kt").write_text(Path("twitch-build/EmoteFingerprints.kt").read_text())
@@ -37,14 +33,12 @@ privacy_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patche
 privacy_patch_dst.mkdir(parents=True, exist_ok=True)
 (privacy_patch_dst / "PrivacyPatch.kt").write_text(Path("twitch-build/PrivacyPatch.kt").read_text())
 
-# Copy the proven 7TV/BTTV renderer from hoomans-morphe-patches.
 donor_emotes = DONOR / "extensions/twitch/src/main/java/app/morphe/extension/twitch/emotes"
 emote_ext_dst = ROOT / "extensions/twitch/src/main/java/app/morphe/extension/twitch/emotes"
 if emote_ext_dst.exists():
     shutil.rmtree(emote_ext_dst)
 shutil.copytree(donor_emotes, emote_ext_dst)
 
-# Make donor renderer obey Kizu settings.
 catalog = emote_ext_dst / "EmoteCatalog.java"
 s = catalog.read_text()
 
@@ -563,6 +557,64 @@ for path, symbol in internal_patches:
         raise RuntimeError(f"Could not internalize {symbol}")
     path.write_text(s)
 
+# --- Emote picker (global third-party emotes in the native picker) -----------
+
+(emote_patch_dst / "EmotePickerFingerprints.kt").write_text(
+    Path("twitch-build/EmotePickerFingerprints.kt").read_text()
+)
+(emote_patch_dst / "EmotePickerPatch.kt").write_text(
+    Path("twitch-build/EmotePickerPatch.kt").read_text()
+)
+(emote_ext_dst / "EmotePickerBridge.java").write_text(
+    Path("twitch-build/EmotePickerBridge.java").read_text()
+)
+
+_picker_catalog = emote_ext_dst / "EmoteCatalog.java"
+_ps = _picker_catalog.read_text()
+if "getAllForChannel" not in _ps:
+    _needle = "    private void schedule"
+    if _needle not in _ps:
+        raise RuntimeError("EmoteCatalog: could not find schedule() to inject picker accessor.")
+    _accessor = """    public java.util.List<Emote> getAllForChannel(String channelId) {
+        java.util.List<Emote> out = new java.util.ArrayList<>();
+        if (channelId != null) {
+            ChannelState channel = getChannel(channelId, false);
+            if (channel != null) {
+                out.addAll(channel.sevenTv.emotes.values());
+                out.addAll(channel.betterTtv.emotes.values());
+                out.addAll(channel.ffz.emotes.values());
+            }
+        }
+        out.addAll(globalSevenTv.emotes.values());
+        out.addAll(globalBetterTtv.emotes.values());
+        out.addAll(globalFfz.emotes.values());
+        return out;
+    }
+
+    private void schedule"""
+    _ps = _ps.replace(_needle, _accessor, 1)
+    _picker_catalog.write_text(_ps)
+
+_enh = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement/EnhancementPatch.kt"
+_es = _enh.read_text()
+if "thirdPartyEmotePickerPatch" not in _es:
+    _es = _es.replace(
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n"
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
+    )
+    _es = _es.replace(
+        "        thirdPartyEmotesPatch,\n",
+        "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerPatch,\n",
+    )
+    _enh.write_text(_es)
+
+_pp = ROOT / "extensions/proguard-rules.pro"
+_px = _pp.read_text()
+if "-keep class app.morphe.extension.twitch.emotes.EmotePickerBridge" not in _px:
+    _px += "\n-keep class app.morphe.extension.twitch.emotes.EmotePickerBridge { *; }\n"
+    _pp.write_text(_px)
+
 # Project / bundle identity.
 p = ROOT / "settings.gradle.kts"
 p.write_text(p.read_text().replace('rootProject.name = "uyu"', 'rootProject.name = "kizu"'))
@@ -574,7 +626,7 @@ s = 'version = "' + os.environ.get("KIZU_VERSION", "0.3.0") + '"\n\n' + re.sub(r
 s = s.replace('name = "uyu"', 'name = "Kizu"')
 s = s.replace(
     'description = "Patches for Twitch: channel points auto claim, Niconico-style scrolling comments and ad blocking."',
-    'description = "Kizu enhancements for the Android Twitch app, based on uyu and hoomans-morphe-patches."',
+    'description = "Kizu enhancements for the Android Twitch app, based on uyu and hooman-morphe-patches."',
 )
 s = s.replace('source = "git@github.com:bakwudo/uyu.git"',
               'source = "https://github.com/K8R8TO/boost-randnsfw-patch"')
