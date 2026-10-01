@@ -713,6 +713,16 @@ init_new = """    public static void init(Context context) {
 if init_old in s:
     s = s.replace(init_old, init_new, 1)
 
+s = s.replace(
+    "                    new CenteredImageSpan(textView, drawable),",
+    """                    new CenteredImageSpan(
+                            textView,
+                            drawable,
+                            emote.zeroWidth && Settings.EMOTES_ZERO_WIDTH.get()
+                    ),""",
+    1,
+)
+
 support.write_text(s)
 
 proguard = ROOT / "extensions/proguard-rules.pro"
