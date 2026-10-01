@@ -406,7 +406,7 @@ emote.write_text(s)
 catalog = emote_ext_dst / "EmoteCatalog.java"
 s = catalog.read_text()
 old_seven = 'target.put(name, new Emote(name, url, data != null && data.optBoolean("animated", false)));'
-new_seven = 'target.put(name, new Emote(name, url, data != null && data.optBoolean("animated", false),\\n                    (item.optInt("flags", 0) & (1 << 8)) != 0));'
+new_seven = 'target.put(name, new Emote(name, url, data != null && data.optBoolean("animated", false),\n                    (item.optInt("flags", 0) & (1 << 8)) != 0));'
 if old_seven not in s:
     raise RuntimeError("SevenTV emote parse line changed.")
 s = s.replace(old_seven, new_seven, 1)
