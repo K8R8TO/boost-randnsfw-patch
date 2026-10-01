@@ -1,5 +1,7 @@
 package app.morphe.extension.twitch.emotes;
 
+import android.util.Log;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -13,29 +15,29 @@ import java.util.concurrent.ConcurrentHashMap;
  * Runtime bridge between the patched Twitch emote picker and Kizu's third-party
  * emote catalogue.
  *
- * All access to Twitch's obfuscated picker-model classes is via reflection, using
- * the same names as EmotePickerFingerprints.kt. This mirrors EmoteSupport.java,
- * which only refers to framework types at compile time.
- *
- * Scope: this iteration injects third-party emotes into the picker's data model
- * so they appear in search and click-to-insert. Rendering the third-party image
- * in the grid requires a separate hook on the picker's image loader.
+ * All access to Twitch's obfuscated picker-model classes is via reflection.
+ * Classes in the default package have no prefix (the "defpackage" folder in a
+ * jadx dump is a display convention).
  */
 public final class EmotePickerBridge {
 
-    private static final String MTF_CLASS = "defpackage.mtf";
-    private static final String ZHO_CLASS = "defpackage.zho";
-    private static final String UOF_CLASS = "defpackage.uof";
-    private static final String WOF_CLASS = "defpackage.wof";
-    private static final String TOF_CLASS = "defpackage.tof";
-    private static final String MB7_CLASS = "defpackage.mb7";
-    private static final String R93_CLASS = "defpackage.r93";
-    private static final String LTF_CLASS = "defpackage.ltf";
-    private static final String XOF_CLASS = "defpackage.xof";
-    private static final String ZOF_CLASS = "defpackage.zof";
-    private static final String QOF_CLASS = "defpackage.qof";
+    private static final String TAG = "KizuPicker";
 
-    private static final String CATALOG_CLASS = "app.morphe.extension.twitch.emotes.EmoteCatalog";
+    // Twitch 31.3.1 obfuscated model classes (default package, no prefix).
+    private static final String MTF = "mtf";
+    private static final String ZHO = "zho";
+    private static final String UOF = "uof";
+    private static final String WOF = "wof";
+    private static final String TOF = "tof";
+    private static final String MB7 = "mb7";
+    private static final String R93 = "r93";
+    private static final String LTF = "ltf";
+    private static final String XOF = "xof";
+    private static final String ZOF = "zof";
+    private static final String QOF = "qof";
+
+    // Kizu's catalogue class (uses its real application package).
+    private static final String CATALOG = "app.morphe.extension.twitch.emotes.EmoteCatalog";
 
     private static final Map<String, List<Entry>> CHANNEL_EMOTES = new ConcurrentHashMap<>();
     private static volatile String currentChannelId;
@@ -53,7 +55,9 @@ public final class EmotePickerBridge {
             Method toInt = tuid.getClass().getMethod("toInt");
             Object result = toInt.invoke(tuid);
             currentChannelId = result == null ? null : String.valueOf(result);
-        } catch (Throwable ignored) {
+            Log.d(TAG, "picker opened for channel " + currentChannelId);
+        } catch (Throwable t) {
+            Log.w(TAG, "onPickerOpened failed", t);
             currentChannelId = null;
         }
     }
@@ -66,6 +70,7 @@ public final class EmotePickerBridge {
         try {
             List<Entry> entries = lookupEntries(currentChannelId);
             if (entries.isEmpty()) {
+                Log.d(TAG, "no third-party emotes for channel " + currentChannelId);
                 return mtf;
             }
 
@@ -76,24 +81,29 @@ public final class EmotePickerBridge {
             Object existing = getEmotes.invoke(mtf);
             Object header = getHeader.invoke(mtf);
             if (!(existing instanceof List) || header == null) {
+                Log.w(TAG, "mtf shape unexpected");
                 return mtf;
             }
 
             List<Object> merged = new ArrayList<Object>((List<?>) existing);
+            int added = 0;
             for (Entry entry : entries) {
                 Object uiModel = buildUiModel(cl, entry);
                 if (uiModel != null) {
                     merged.add(uiModel);
+                    added++;
                 }
             }
-            if (merged.size() == ((List<?>) existing).size()) {
+            Log.d(TAG, "merged " + added + " of " + entries.size() + " third-party emotes");
+            if (added == 0) {
                 return mtf;
             }
 
-            Class<?> zhoClass = Class.forName(ZHO_CLASS, false, cl);
+            Class<?> zhoClass = Class.forName(ZHO, false, cl);
             Constructor<?> ctor = mtf.getClass().getConstructor(zhoClass, List.class);
             return ctor.newInstance(header, merged);
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Log.e(TAG, "mergeInto failed", t);
             return mtf;
         }
     }
@@ -107,10 +117,11 @@ public final class EmotePickerBridge {
             return cached;
         }
         try {
-            Class<?> catalogClass = Class.forName(CATALOG_CLASS);
+            Class<?> catalogClass = Class.forName(CATALOG);
             Method all = catalogClass.getMethod("getAllForChannel", String.class);
             Object result = all.invoke(null, channelId);
             if (!(result instanceof List)) {
+                Log.w(TAG, "catalog.getAllForChannel returned non-list");
                 return Collections.emptyList();
             }
             List<Entry> converted = new ArrayList<Entry>();
@@ -120,9 +131,11 @@ public final class EmotePickerBridge {
                     converted.add(entry);
                 }
             }
+            Log.d(TAG, "catalog returned " + converted.size() + " entries for " + channelId);
             CHANNEL_EMOTES.put(channelId, converted);
             return converted;
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Log.e(TAG, "lookupEntries failed", t);
             return Collections.emptyList();
         }
     }
@@ -143,22 +156,23 @@ public final class EmotePickerBridge {
                 return null;
             }
             return new Entry(code, url, animated);
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Log.w(TAG, "toEntry failed", t);
             return null;
         }
     }
 
     private static Object buildUiModel(ClassLoader cl, Entry entry) {
         try {
-            Class<?> xofClass = Class.forName(XOF_CLASS, false, cl);
-            Class<?> zofClass = Class.forName(ZOF_CLASS, false, cl);
-            Class<?> qofClass = Class.forName(QOF_CLASS, false, cl);
-            Class<?> wofClass = Class.forName(WOF_CLASS, false, cl);
-            Class<?> uofClass = Class.forName(UOF_CLASS, false, cl);
-            Class<?> tofClass = Class.forName(TOF_CLASS, false, cl);
-            Class<?> mb7Class = Class.forName(MB7_CLASS, false, cl);
-            Class<?> r93Class = Class.forName(R93_CLASS, false, cl);
-            Class<?> ltfClass = Class.forName(LTF_CLASS, false, cl);
+            Class<?> xofClass = Class.forName(XOF, false, cl);
+            Class<?> zofClass = Class.forName(ZOF, false, cl);
+            Class<?> qofClass = Class.forName(QOF, false, cl);
+            Class<?> wofClass = Class.forName(WOF, false, cl);
+            Class<?> uofClass = Class.forName(UOF, false, cl);
+            Class<?> tofClass = Class.forName(TOF, false, cl);
+            Class<?> mb7Class = Class.forName(MB7, false, cl);
+            Class<?> r93Class = Class.forName(R93, false, cl);
+            Class<?> ltfClass = Class.forName(LTF, false, cl);
 
             Object assetType = enumConstant(xofClass, entry.animated ? "ANIMATED" : "STATIC");
             Object emoteKind = enumConstant(zofClass, "OTHER");
@@ -172,16 +186,34 @@ public final class EmotePickerBridge {
                     .getConstructor(String.class, String.class, boolean.class)
                     .newInstance(entry.code, entry.url, false);
 
-            Object unlocked = mb7Class
-                    .getConstructor(wofClass, tofClass)
-                    .newInstance(emote, messageInput);
+            Object unlocked = newInstanceByArity(mb7Class, 2, emote, messageInput);
 
-            return ltfClass
-                    .getConstructor(String.class, r93Class, xofClass, qofClass)
-                    .newInstance(entry.url, unlocked, assetType, displayMode);
-        } catch (Throwable ignored) {
+            Object uiModel = newInstanceByArity(
+                    ltfClass, 4, entry.url, unlocked, assetType, displayMode
+            );
+            return uiModel;
+        } catch (Throwable t) {
+            Log.w(TAG, "buildUiModel failed for " + entry.code, t);
             return null;
         }
+    }
+
+    /**
+     * Kotlin data classes with default arguments expose a synthetic constructor
+     * whose arity reflects only the required arguments. Those constructors are
+     * not always returned by {@link Class#getConstructor}, so we scan all
+     * declared constructors and pick the one with the matching parameter count.
+     */
+    private static Object newInstanceByArity(Class<?> cls, int arity, Object... args)
+            throws Exception {
+        for (Constructor<?> c : cls.getDeclaredConstructors()) {
+            if (c.getParameterCount() == arity) {
+                c.setAccessible(true);
+                return c.newInstance(args);
+            }
+        }
+        throw new NoSuchMethodException(
+                cls.getName() + " has no constructor with arity " + arity);
     }
 
     private static Object enumConstant(Class<?> enumClass, String name) throws Exception {
