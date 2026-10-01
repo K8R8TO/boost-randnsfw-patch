@@ -10,12 +10,14 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import io.github.bakwudo.uyu.extension.settings.Settings;
 import io.github.bakwudo.uyu.extension.Utils;
 
 public final class EmotePickerBridge {
     private static final String TAG = "KizuPicker";
+    private static final ConcurrentHashMap<String, String> IMAGE_URLS = new ConcurrentHashMap<>();
 
     private static final String T_ASSET = "tv.twitch.android.models.emotes.EmoteModelAssetType";
     private static final String T_KIND = "tv.twitch.android.models.emotes.EmoteModelType";
@@ -29,6 +31,11 @@ public final class EmotePickerBridge {
             "tv.twitch.android.shared.emotes.emotepicker.models.EmoteImageDescriptor";
 
     private EmotePickerBridge() {
+    }
+
+    public static String getEmoteUrl(String id) {
+        if (id == null || !id.startsWith("KIZU-")) return null;
+        return IMAGE_URLS.get(id);
     }
 
     public static void onPickerOpened(Object ignored) {
@@ -146,6 +153,8 @@ public final class EmotePickerBridge {
 
         String syntheticId = "KIZU-" + Integer.toHexString(entry.code.hashCode()) + "-" +
                 Integer.toHexString(entry.url.hashCode());
+
+        IMAGE_URLS.put(syntheticId, entry.url);
 
         Object emoteModel = newInstanceMatching(
                 modelGeneric, syntheticId, entry.code, asset, kind
