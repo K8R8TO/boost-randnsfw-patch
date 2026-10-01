@@ -599,7 +599,7 @@ channel_block_old = """            if (normalized != null) {
 """
 channel_block_new = """            if (normalized != null) {
                 lastRoomId = normalized;
-                Context context = appContext;
+                Context context = Utils.getContext();
                 if (context != null) {
                     CATALOG.ensureLoaded(context, normalized);
                 }
