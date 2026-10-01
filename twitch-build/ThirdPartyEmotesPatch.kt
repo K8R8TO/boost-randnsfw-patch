@@ -42,7 +42,7 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
 
         channelConstructor.addInstructions(
             returnIndex,
-            "invoke-static { p1, p2 }, $EXTENSION->onChannelChanged(Ljava/lang/String;Ljava/lang/String;)V",
+            "invoke-static {p1, p2}, $EXTENSION->onChannelChanged(Ljava/lang/String;Ljava/lang/String;)V",
         )
 
         // Locate Twitch's chat-row binder structurally. R8 class/method names are
@@ -109,7 +109,7 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
         val textViewRegister = registers.registerC
         bindMethod.addInstructions(
             textCall.index + 1,
-            "invoke-static { v$textViewRegister }, $EXTENSION->bind(Landroid/widget/TextView;)",
+            "invoke-static {v$textViewRegister}, $EXTENSION->bind(Landroid/widget/TextView;)V",
         )
     }
 }
