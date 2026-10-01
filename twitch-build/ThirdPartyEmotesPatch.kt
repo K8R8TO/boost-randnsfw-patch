@@ -8,7 +8,6 @@ import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
-import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
 import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
@@ -69,16 +68,9 @@ internal val thirdPartyEmotesPatch = bytecodePatch {
         }
 
         val rowClassDef = classDefByStrings("glideTarget")
-            .singleOrNull { classDef ->
-                val hasContextPin = classDef.methods.any { method ->
-                    method.implementation?.instructions?.any { instruction ->
-                        ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string ==
-                            "getApplicationContext(...)"
-                    } == true
-                }
-                hasContextPin && classDef.methods.any(::isChatBindMethod)
-            } ?: throw PatchException(
-                "Kizu emotes: chat row holder pinned by Glide cleanup was not found uniquely.",
+            .singleOrNull { classDef -> classDef.methods.any(::isChatBindMethod) }
+            ?: throw PatchException(
+                "Kizu emotes: Twitch chat row binder was not found uniquely from glideTarget.",
             )
 
         val rowClass = mutableClassDefBy(rowClassDef)
