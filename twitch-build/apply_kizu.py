@@ -781,6 +781,38 @@ for path, symbol in internal_patches:
         raise RuntimeError(f"Could not internalize {symbol}")
     path.write_text(s)
 
+# Hide Uyu's standalone Twitch features from Morphe's public patch list.
+# They remain in the donor source/extension for compatibility, but Kizu exposes
+# only Twitch Enhancement as the user-selectable Twitch patch.
+for path, symbol in [
+    (ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/channelpoints/AutoClaimChannelPointsPatch.kt",
+     "autoClaimChannelPointsPatch"),
+    (ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/danmaku/DanmakuCommentsPatch.kt",
+     "danmakuCommentsPatch"),
+    (ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/separateapp/SeparateAppPatch.kt",
+     "separateAppPatch"),
+]:
+    text = path.read_text()
+    text, count = re.subn(
+        rf'@Suppress\\("unused"\\)\\nval {symbol} = (?:bytecodePatch|resourcePatch)\\(',
+        lambda m: f'internal val {symbol} = ' + m.group(0).split(" = ", 1)[1].replace(
+            '@Suppress("unused")\n', '', 1
+        ),
+        text,
+        count=1,
+    )
+    if count != 1:
+        # Handle donors that omit the suppression annotation.
+        text, count = re.subn(
+            rf'(?m)^val {symbol} = (bytecodePatch|resourcePatch)\\(',
+            rf'internal val {symbol} = \\1(',
+            text,
+            count=1,
+        )
+    if count != 1:
+        raise RuntimeError(f"Could not hide public patch {symbol}")
+    path.write_text(text)
+
 # --- Emote picker (global third-party emotes in the native picker) -----------
 
 (emote_patch_dst / "EmotePickerFingerprints.kt").write_text(
