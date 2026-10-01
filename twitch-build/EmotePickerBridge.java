@@ -25,7 +25,7 @@ public final class EmotePickerBridge {
     private static final String ZOF = "zof";
     private static final String QOF = "qof";
 
-    private static final String CATALOG = "app.morphe.extension.twitch.emotes.EmoteCatalog";
+    private static final String SUPPORT = "app.morphe.extension.twitch.emotes.EmoteSupport";
 
     private EmotePickerBridge() {
     }
@@ -36,7 +36,7 @@ public final class EmotePickerBridge {
     public static void onPickerOpened(Object tuid) {
         try {
             Class<?> supportClass = Class.forName(
-                    CATALOG.replace(".EmotePickerBridge", ".EmoteSupport"),
+                    SUPPORT,
                     true,
                     EmotePickerBridge.class.getClassLoader()
             );
