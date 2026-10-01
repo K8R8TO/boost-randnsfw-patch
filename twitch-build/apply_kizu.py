@@ -695,19 +695,45 @@ if "getAllForChannel" not in _ps:
     if _needle not in _ps:
         raise RuntimeError("EmoteCatalog: could not find schedule() to inject picker accessor.")
     _accessor = """    public java.util.List<Emote> getAllForChannel(String channelId) {
-        java.util.List<Emote> out = new java.util.ArrayList<>();
+        java.util.LinkedHashMap<String, Emote> unique = new java.util.LinkedHashMap<>();
+
         if (channelId != null) {
             ChannelState channel = getChannel(channelId, false);
             if (channel != null) {
-                out.addAll(channel.sevenTv.emotes.values());
-                out.addAll(channel.betterTtv.emotes.values());
-                out.addAll(channel.ffz.emotes.values());
+                if (Settings.EMOTES_7TV.get()) {
+                    for (Emote emote : channel.sevenTv.emotes.values()) {
+                        if (!unique.containsKey(emote.name)) unique.put(emote.name, emote);
+                    }
+                }
+                if (Settings.EMOTES_BTTV.get()) {
+                    for (Emote emote : channel.betterTtv.emotes.values()) {
+                        if (!unique.containsKey(emote.name)) unique.put(emote.name, emote);
+                    }
+                }
+                if (Settings.EMOTES_FFZ.get()) {
+                    for (Emote emote : channel.ffz.emotes.values()) {
+                        if (!unique.containsKey(emote.name)) unique.put(emote.name, emote);
+                    }
+                }
             }
         }
-        out.addAll(globalSevenTv.emotes.values());
-        out.addAll(globalBetterTtv.emotes.values());
-        out.addAll(globalFfz.emotes.values());
-        return out;
+
+        if (Settings.EMOTES_7TV.get()) {
+            for (Emote emote : globalSevenTv.emotes.values()) {
+                if (!unique.containsKey(emote.name)) unique.put(emote.name, emote);
+            }
+        }
+        if (Settings.EMOTES_BTTV.get()) {
+            for (Emote emote : globalBetterTtv.emotes.values()) {
+                if (!unique.containsKey(emote.name)) unique.put(emote.name, emote);
+            }
+        }
+        if (Settings.EMOTES_FFZ.get()) {
+            for (Emote emote : globalFfz.emotes.values()) {
+                if (!unique.containsKey(emote.name)) unique.put(emote.name, emote);
+            }
+        }
+        return new java.util.ArrayList<>(unique.values());
     }
 
     private void schedule"""
