@@ -630,7 +630,7 @@ span.write_text(s)
 support = emote_ext_dst / "EmoteSupport.java"
 s = support.read_text()
 s = s.replace(
-    "import android.widget.TextView;\n",
+    "import android.content.Context;\nimport android.widget.TextView;\n",
     "import android.widget.TextView;\n\nimport io.github.bakwudo.uyu.extension.settings.Settings;\nimport io.github.bakwudo.uyu.extension.Utils;\n",
 )
 needle = "    public static void bind(TextView textView, String sourceChannelId) {"
