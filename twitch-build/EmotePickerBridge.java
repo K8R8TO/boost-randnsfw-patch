@@ -38,6 +38,46 @@ public final class EmotePickerBridge {
         return IMAGE_URLS.get(id);
     }
 
+    public static void addAutocomplete(Object rawList) {
+        if (!Settings.EMOTES_AUTOCOMPLETE.get() || !(rawList instanceof List)) return;
+        try {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) rawList;
+            ClassLoader cl = EmotePickerBridge.class.getClassLoader();
+            Class<?> setClass = Class.forName("tv.twitch.android.models.emotes.EmoteSet", false, cl);
+            Class<?> genericSet = Class.forName("tv.twitch.android.models.emotes.EmoteSet$GenericEmoteSet", false, cl);
+            for (Object set : list) {
+                try {
+                    Method getSetId = setClass.getMethod("getSetId");
+                    if ("KIZU_EMOTE_SET".equals(String.valueOf(getSetId.invoke(set)))) return;
+                } catch (Throwable ignored) {
+                }
+            }
+
+            String channel = EmoteSupport.getCurrentChannelId();
+            List<Entry> entries = loadForChannel(channel);
+            if (entries.isEmpty() || list.isEmpty()) return;
+
+            Class<?> assetType = Class.forName(T_ASSET, false, cl);
+            Class<?> modelKind = Class.forName(T_KIND, false, cl);
+            Class<?> modelGeneric = Class.forName(T_MODEL_GENERIC, false, cl);
+            List<Object> models = new ArrayList<>(entries.size());
+            for (Entry entry : entries) {
+                String id = "KIZU-" + Integer.toHexString(entry.code.hashCode()) + "-" +
+                        Integer.toHexString(entry.url.hashCode());
+                IMAGE_URLS.put(id, entry.url);
+                Object asset = enumConstant(assetType, entry.animated ? "ANIMATED" : "STATIC");
+                Object kind = enumConstant(modelKind, "OTHER");
+                models.add(newInstanceMatching(modelGeneric, id, entry.code, asset, kind));
+            }
+
+            Object set = newInstanceMatching(genericSet, "KIZU_EMOTE_SET", models);
+            list.add(set);
+        } catch (Throwable t) {
+            Log.e(TAG, "addAutocomplete failed", t);
+        }
+    }
+
     public static void onPickerOpened(Object ignored) {
         try {
             String channel = EmoteSupport.getCurrentChannelId();
