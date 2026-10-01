@@ -29,6 +29,7 @@ emote_patch_dst.mkdir(parents=True, exist_ok=True)
 (emote_patch_dst / "Fingerprints.kt").write_text(Path("twitch-build/EmoteFingerprints.kt").read_text())
 (emote_patch_dst / "ThirdPartyEmotesPatch.kt").write_text(Path("twitch-build/ThirdPartyEmotesPatch.kt").read_text())
 (emote_patch_dst / "EmotePickerUrlPatch.kt").write_text(Path("twitch-build/EmotePickerUrlPatch.kt").read_text())
+(emote_patch_dst / "EmoteAutocompletePatch.kt").write_text(Path("twitch-build/EmoteAutocompletePatch.kt").read_text())
 
 privacy_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/privacy"
 privacy_patch_dst.mkdir(parents=True, exist_ok=True)
@@ -862,18 +863,26 @@ if "autoClaimChannelPointsPatch" not in _es:
         "        settingsPatch,\n        autoClaimChannelPointsPatch,\n        danmakuCommentsPatch,\n        separateAppPatch,\n",
         1,
     )
-if "thirdPartyEmotePickerPatch" not in _es:
-    _es = _es.replace(
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerUrlPatch\n",
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n"
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
-    )
-    _es = _es.replace(
-        "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerUrlPatch,\n",
-        "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerPatch,\n",
-    )
-    _enh.write_text(_es)
+# Keep all third-party emote patch stages enabled together.
+_import_anchor = "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n"
+_imports = (
+    "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n"
+    "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerUrlPatch\n"
+    "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmoteAutocompletePatch\n"
+)
+if "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n" not in _es:
+    _es = _es.replace(_import_anchor, _imports + _import_anchor, 1)
+
+_dep_anchor = "        thirdPartyEmotesPatch,\n"
+_deps = (
+    "        thirdPartyEmotePickerPatch,\n"
+    "        thirdPartyEmotePickerUrlPatch,\n"
+    "        thirdPartyEmoteAutocompletePatch,\n"
+)
+if "        thirdPartyEmotePickerPatch,\n" not in _es:
+    _es = _es.replace(_dep_anchor, _dep_anchor + _deps, 1)
+
+_enh.write_text(_es)
 
 _pp = ROOT / "extensions/proguard-rules.pro"
 _px = _pp.read_text()
