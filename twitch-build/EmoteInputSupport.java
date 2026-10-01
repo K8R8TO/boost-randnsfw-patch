@@ -238,24 +238,32 @@ public final class EmoteInputSupport {
             }
 
             dismissAutocomplete();
-            autocompleteWindow = new PopupWindow(
-                    list,
-                    Math.min(
-                            dp(input, 320),
-                            Math.max(dp(input, 200), input.getWidth())
-                    ),
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    false
+            final int popupWidth = Math.min(
+                    dp(input, 320),
+                    Math.max(dp(input, 200), input.getWidth())
             );
+            list.measure(
+                    View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            );
+            final int popupHeight = Math.max(1, list.getMeasuredHeight());
+            autocompleteWindow = new PopupWindow(list, popupWidth, popupHeight, false);
             autocompleteWindow.setBackgroundDrawable(
                     new ColorDrawable(Color.rgb(30, 30, 30))
             );
+            autocompleteWindow.setTouchable(true);
             autocompleteWindow.setOutsideTouchable(true);
             autocompleteWindow.setElevation(dp(input, 8));
             autocompleteWindow.setInputMethodMode(
                     PopupWindow.INPUT_METHOD_NOT_NEEDED
             );
-            autocompleteWindow.showAsDropDown(input, 0, dp(input, 2));
+            // The chat box sits directly above the keyboard, and the keyboard window is drawn
+            // over app popups, so the suggestions must open upward from the input.
+            autocompleteWindow.showAsDropDown(
+                    input,
+                    0,
+                    -(input.getHeight() + popupHeight + dp(input, 2))
+            );
         }
 
         void showPicker() {
