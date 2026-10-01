@@ -54,6 +54,23 @@ public final class EmotePickerBridge {
                 return uiSet;
             }
 
+            Method getHeader = findNoArgMethod(uiSet.getClass(), "c", "getHeader");
+            if (getHeader == null) {
+                getHeader = findObjectGetterByType(uiSet.getClass(),
+                        "tv.twitch.android.shared.emotes.emotepicker.models.EmoteHeaderUiModel");
+            }
+            if (getHeader != null) {
+                Object header = getHeader.invoke(uiSet);
+                Method getSection = findNoArgMethod(header.getClass(), "getEmotePickerSection");
+                if (getSection != null) {
+                    Object section = getSection.invoke(header);
+                    String sectionName = section == null ? "" : section.toString();
+                    if (!"ALL".equals(sectionName)) {
+                        return uiSet;
+                    }
+                }
+            }
+
             Method getEmotes = findNoArgMethod(uiSet.getClass(), "b", "getEmotes");
             if (getEmotes == null) {
                 getEmotes = findListReturningGetter(uiSet.getClass());
@@ -173,6 +190,16 @@ public final class EmotePickerBridge {
                 Method m = cls.getMethod(name);
                 if (m.getParameterCount() == 0) return m;
             } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Method findObjectGetterByType(Class<?> cls, String typeName) {
+        for (Method method : cls.getMethods()) {
+            if (method.getParameterCount() == 0 &&
+                    method.getReturnType().getName().equals(typeName)) {
+                return method;
             }
         }
         return null;
