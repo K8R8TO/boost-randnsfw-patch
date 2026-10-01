@@ -88,9 +88,12 @@ public final class EmotePickerBridge {
 
     private static List<Entry> loadForChannel(String channelId) {
         try {
-            Class<?> catalogClass = Class.forName(
-                    CATALOG, true, EmotePickerBridge.class.getClassLoader());
-            Method all = catalogClass.getMethod("getAllForChannel", String.class);
+            Class<?> supportClass = Class.forName(
+                    CATALOG.replace(".EmotePickerBridge", ".EmoteSupport"),
+                    true,
+                    EmotePickerBridge.class.getClassLoader()
+            );
+            Method all = supportClass.getMethod("getAllForChannel", String.class);
             Object result = all.invoke(null, channelId);
             if (!(result instanceof List)) {
                 return Collections.emptyList();
@@ -108,15 +111,14 @@ public final class EmotePickerBridge {
     }
 
     private static Entry toEntry(Object emote) {
-        if (emote == null) return null;
+        if (!(emote instanceof Emote)) return null;
         try {
-            Class<?> cls = emote.getClass();
-            String code = String.valueOf(cls.getField("code").get(emote));
-            String url = String.valueOf(cls.getField("url").get(emote));
-            boolean animated = cls.getField("animated").getBoolean(emote);
-            if (code.isEmpty() || url.isEmpty()) return null;
-            return new Entry(code, url, animated);
+            Emote value = (Emote) emote;
+            if (value.name == null || value.name.isEmpty() ||
+                value.url == null || value.url.isEmpty()) return null;
+            return new Entry(value.name, value.url, value.animated);
         } catch (Throwable t) {
+            Log.w(TAG, "toEntry failed", t);
             return null;
         }
     }
