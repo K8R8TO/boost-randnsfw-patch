@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import io.github.bakwudo.uyu.extension.settings.Settings;
+
 public final class EmotePickerBridge {
 
     private static final String TAG = "KizuPicker";
@@ -30,8 +32,24 @@ public final class EmotePickerBridge {
 
     private static volatile String currentChannelId;
 
-    /** Called when Twitch opens the picker so channel-specific third-party emotes can be included. */
+    /** Called when Twitch opens the picker. Prefer the channel captured by the chat connection. */
     public static void onPickerOpened(Object tuid) {
+        try {
+            Class<?> supportClass = Class.forName(
+                    CATALOG.replace(".EmotePickerBridge", ".EmoteSupport"),
+                    true,
+                    EmotePickerBridge.class.getClassLoader()
+            );
+            Method current = supportClass.getMethod("getCurrentChannelId");
+            Object value = current.invoke(null);
+            currentChannelId = value == null ? null : String.valueOf(value);
+            if (currentChannelId != null && !currentChannelId.isEmpty()) {
+                return;
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not read current channel ID from EmoteSupport", t);
+        }
+
         if (tuid == null) {
             currentChannelId = null;
             return;
@@ -41,7 +59,7 @@ public final class EmotePickerBridge {
             Object result = toInt.invoke(tuid);
             currentChannelId = result == null ? null : String.valueOf(result);
         } catch (Throwable t) {
-            Log.w(TAG, "Could not resolve picker channel ID", t);
+            Log.w(TAG, "Could not resolve picker channel ID from Tuid", t);
             currentChannelId = null;
         }
     }
@@ -49,6 +67,7 @@ public final class EmotePickerBridge {
     /** Called from the patched EmotePickerPresenter.G2 just before it returns. */
     public static Object mergeGlobal(Object mtf) {
         try {
+            if (!Settings.EMOTES_PICKER.get()) return mtf;
             List<Entry> entries = loadForChannel(currentChannelId);
             if (entries.isEmpty()) {
                 return mtf;
@@ -139,30 +158,65 @@ public final class EmotePickerBridge {
             Object emoteKind = enumConstant(zofClass, "OTHER");
             Object displayMode = enumConstant(qofClass, "NONE");
 
-            Object emote = uofClass
-                    .getConstructor(String.class, String.class, xofClass, zofClass)
-                    .newInstance(entry.url, entry.code, assetType, emoteKind);
-            Object input = tofClass
-                    .getConstructor(String.class, String.class, boolean.class)
-                    .newInstance(entry.code, entry.url, false);
-            Object unlocked = newInstanceByArity(mb7Class, 2, emote, input);
-            return newInstanceByArity(ltfClass, 4, entry.url, unlocked, assetType, displayMode);
+            Object emote = newInstanceMatching(
+                    uofClass, entry.url, entry.code, assetType, emoteKind
+            );
+            Object input = newInstanceMatching(
+                    tofClass, entry.code, entry.url, false
+            );
+            Object unlocked = newInstanceMatching(mb7Class, emote, input);
+            return newInstanceMatching(
+                    ltfClass, entry.url, unlocked, assetType, displayMode
+            );
         } catch (Throwable t) {
             Log.w(TAG, "buildUiModel failed for " + entry.code, t);
             return null;
         }
     }
 
-    private static Object newInstanceByArity(Class<?> cls, int arity, Object... args)
+    private static Object newInstanceMatching(Class<?> cls, Object... args)
             throws Exception {
         for (Constructor<?> c : cls.getDeclaredConstructors()) {
-            if (c.getParameterCount() == arity) {
-                c.setAccessible(true);
-                return c.newInstance(args);
+            Class<?>[] types = c.getParameterTypes();
+            if (types.length != args.length) continue;
+
+            boolean compatible = true;
+            for (int i = 0; i < types.length; i++) {
+                if (args[i] == null) {
+                    if (types[i].isPrimitive()) {
+                        compatible = false;
+                        break;
+                    }
+                    continue;
+                }
+                Class<?> expected = wrapPrimitive(types[i]);
+                if (!expected.isAssignableFrom(args[i].getClass())) {
+                    compatible = false;
+                    break;
+                }
             }
+            if (!compatible) continue;
+
+            c.setAccessible(true);
+            return c.newInstance(args);
         }
+
         throw new NoSuchMethodException(
-                cls.getName() + " has no constructor with arity " + arity);
+                cls.getName() + " has no compatible constructor"
+        );
+    }
+
+    private static Class<?> wrapPrimitive(Class<?> type) {
+        if (!type.isPrimitive()) return type;
+        if (type == boolean.class) return Boolean.class;
+        if (type == byte.class) return Byte.class;
+        if (type == short.class) return Short.class;
+        if (type == int.class) return Integer.class;
+        if (type == long.class) return Long.class;
+        if (type == float.class) return Float.class;
+        if (type == double.class) return Double.class;
+        if (type == char.class) return Character.class;
+        return type;
     }
 
     private static Object enumConstant(Class<?> enumClass, String name) throws Exception {
