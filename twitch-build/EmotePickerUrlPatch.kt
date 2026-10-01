@@ -3,7 +3,6 @@ package io.github.bakwudo.uyu.patches.twitch.emotes
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
-import com.android.tools.smali.dexlib2.AccessFlags
 import io.github.bakwudo.uyu.patches.twitch.shared.Constants.COMPATIBILITY_TWITCH
 import io.github.bakwudo.uyu.patches.twitch.shared.sharedExtensionPatch
 
@@ -23,9 +22,7 @@ internal val thirdPartyEmotePickerUrlPatch = bytecodePatch {
             candidate.name == "generateEmoteUrl" &&
                 candidate.returnType == STRING &&
                 candidate.parameterTypes.map { it.toString() } ==
-                    listOf(STRING, "F") &&
-                candidate.accessFlags.contains(AccessFlags.PUBLIC) &&
-                candidate.accessFlags.contains(AccessFlags.STATIC)
+                    listOf(STRING, "F")
         } ?: throw PatchException(
             "Kizu emotes: expected one public static EmoteUrlUtil.generateEmoteUrl(String,float) method.",
         )
