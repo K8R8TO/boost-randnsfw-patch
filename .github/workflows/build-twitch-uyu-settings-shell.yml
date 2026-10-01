@@ -52,7 +52,9 @@ jobs:
       - name: Collect Kizu MPP
         run: |
           mkdir -p out
-          cp uyu/patches/build/libs/kizu-*.mpp out/kizu.mpp
+          MPP="$(find uyu/patches/build/libs -maxdepth 1 -type f -name '*.mpp' -print -quit)"
+          test -n "$MPP"
+          cp "$MPP" out/kizu.mpp
           cp uyu/patches-list.json out/patches-list.json
           sha256sum out/kizu.mpp
           sha256sum out/patches-list.json
