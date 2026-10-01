@@ -782,8 +782,8 @@ for path, symbol in internal_patches:
     path.write_text(s)
 
 # Hide Uyu's standalone Twitch features from Morphe's public patch list.
-# They remain in the donor source/extension for compatibility, but Kizu exposes
-# only Twitch Enhancement as the user-selectable Twitch patch.
+# They remain available to the bundled implementation, but are not exposed as
+# separate Morphe selections; Twitch Enhancement is the sole public Twitch patch.
 for path, symbol in [
     (ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/channelpoints/AutoClaimChannelPointsPatch.kt",
      "autoClaimChannelPointsPatch"),
@@ -793,24 +793,10 @@ for path, symbol in [
      "separateAppPatch"),
 ]:
     text = path.read_text()
-    text, count = re.subn(
-        rf'@Suppress\\("unused"\\)\\nval {symbol} = (?:bytecodePatch|resourcePatch)\\(',
-        lambda m: f'internal val {symbol} = ' + m.group(0).split(" = ", 1)[1].replace(
-            '@Suppress("unused")\n', '', 1
-        ),
-        text,
-        count=1,
-    )
-    if count != 1:
-        # Handle donors that omit the suppression annotation.
-        text, count = re.subn(
-            rf'(?m)^val {symbol} = (bytecodePatch|resourcePatch)\\(',
-            rf'internal val {symbol} = \\1(',
-            text,
-            count=1,
-        )
-    if count != 1:
-        raise RuntimeError(f"Could not hide public patch {symbol}")
+    needle = f'val {symbol} ='
+    if needle not in text:
+        raise RuntimeError(f"Could not locate public patch {symbol}")
+    text = text.replace(needle, f'internal val {symbol} =', 1)
     path.write_text(text)
 
 # --- Emote picker (global third-party emotes in the native picker) -----------
