@@ -21,7 +21,7 @@ internal val thirdPartyEmotePickerPatch = bytecodePatch {
         val openMethod = EmotePickerOpenFingerprint.method
         openMethod.addInstructions(
             0,
-            "invoke-static { p1 }, $PICKER_BRIDGE->onPickerOpened(Ljava/lang/Object;)V",
+            "invoke-static {p1}, $PICKER_BRIDGE->onPickerOpened(Ljava/lang/Object;)V",
         )
 
         // Wrap the state builder's return value. Must check-cast back to Lmtf;
@@ -39,7 +39,7 @@ internal val thirdPartyEmotePickerPatch = bytecodePatch {
         builderMethod.addInstructions(
             returnIndex,
             """
-                invoke-static { v$reg }, $PICKER_BRIDGE->mergeGlobal(Ljava/lang/Object;)Ljava/lang/Object;
+                invoke-static {v$reg}, $PICKER_BRIDGE->mergeGlobal(Ljava/lang/Object;)Ljava/lang/Object;
                 move-result-object v$reg
                 check-cast v$reg, $MTF_DESCRIPTOR
             """.trimIndent(),
