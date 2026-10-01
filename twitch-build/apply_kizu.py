@@ -573,6 +573,57 @@ s = s.replace(
     "        EmoteCatalog.Heartbeat.attach(textView);\n",
     1,
 )
+# Expose the active channel and catalog data to the native Twitch picker.
+picker_channel_marker = "    public static void onChannelChanged(String channelId, String channelName) {"
+if picker_channel_marker not in s:
+    raise RuntimeError("EmoteSupport channel hook marker changed; cannot add picker accessors safely.")
+picker_support = """    public static String getCurrentChannelId() {
+        return lastRoomId;
+    }
+
+    public static java.util.List<Emote> getAllForChannel(String channelId) {
+        try {
+            return CATALOG.getAllForChannel(channelId);
+        } catch (Throwable ignored) {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+"""
+if "public static java.util.List<Emote> getAllForChannel" not in s:
+    s = s.replace(picker_channel_marker, picker_support + picker_channel_marker, 1)
+
+channel_block_old = """            if (normalized != null) {
+                lastRoomId = normalized;
+            }
+"""
+channel_block_new = """            if (normalized != null) {
+                lastRoomId = normalized;
+                Context context = appContext;
+                if (context != null) {
+                    CATALOG.ensureLoaded(context, normalized);
+                }
+            }
+"""
+if channel_block_old not in s:
+    raise RuntimeError("EmoteSupport channel normalization block changed.")
+s = s.replace(channel_block_old, channel_block_new, 1)
+
+init_old = """    public static void init(Context context) {
+        appContext = context.getApplicationContext();
+    }
+"""
+init_new = """    public static void init(Context context) {
+        appContext = context.getApplicationContext();
+        try {
+            CATALOG.ensureLoaded(appContext, lastRoomId);
+        } catch (Throwable ignored) {
+        }
+    }
+"""
+if init_old in s:
+    s = s.replace(init_old, init_new, 1)
+
 support.write_text(s)
 
 proguard = ROOT / "extensions/proguard-rules.pro"
