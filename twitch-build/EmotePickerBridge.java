@@ -1,156 +1,230 @@
 package app.morphe.extension.twitch.emotes;
 
+import android.content.Context;
+import android.content.res.Resources;
 import android.util.Log;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import io.github.bakwudo.uyu.extension.settings.Settings;
+import io.github.bakwudo.uyu.extension.Utils;
 
 public final class EmotePickerBridge {
-
     private static final String TAG = "KizuPicker";
 
-    private static final String ZHO = "zho";
-    private static final String UOF = "uof";
-    private static final String WOF = "wof";
-    private static final String TOF = "tof";
-    private static final String MB7 = "mb7";
-    private static final String R93 = "r93";
-    private static final String LTF = "ltf";
-    private static final String XOF = "xof";
-    private static final String ZOF = "zof";
-    private static final String QOF = "qof";
-
-    private static final String SUPPORT = "app.morphe.extension.twitch.emotes.EmoteSupport";
+    private static final String T_ASSET = "tv.twitch.android.models.emotes.EmoteModelAssetType";
+    private static final String T_KIND = "tv.twitch.android.models.emotes.EmoteModelType";
+    private static final String T_MODEL_GENERIC = "tv.twitch.android.models.emotes.EmoteModel$Generic";
+    private static final String T_MESSAGE_INPUT = "tv.twitch.android.shared.emotes.models.EmoteMessageInput";
+    private static final String T_CLICKED_UNLOCKED =
+            "tv.twitch.android.shared.emotes.emotepicker.models.ClickedEmote$Unlocked";
+    private static final String T_UI_MODEL =
+            "tv.twitch.android.shared.emotes.emotepicker.models.EmoteUiModel";
+    private static final String T_IMAGE_DESCRIPTOR =
+            "tv.twitch.android.shared.emotes.emotepicker.models.EmoteImageDescriptor";
 
     private EmotePickerBridge() {
     }
 
-    private static volatile String currentChannelId;
-
-    /** Called when Twitch opens the picker. Prefer the channel captured by the chat connection. */
-    public static void onPickerOpened(Object tuid) {
+    public static void onPickerOpened(Object ignored) {
         try {
-            String value = EmoteSupport.getCurrentChannelId();
-            currentChannelId = value == null || value.isEmpty() ? null : value;
-            if (currentChannelId != null) return;
+            String channel = EmoteSupport.getCurrentChannelId();
+            if (channel != null && !channel.isEmpty()) {
+                Log.d(TAG, "picker channel=" + channel);
+            }
         } catch (Throwable t) {
-            Log.w(TAG, "Could not read current channel ID from EmoteSupport", t);
+            Log.w(TAG, "onPickerOpened failed", t);
         }
-        currentChannelId = null;
     }
 
-    /** Called from the patched EmotePickerPresenter.G2 just before it returns. */
-    public static Object mergeGlobal(Object mtf) {
+    /** Injects third-party emotes into Twitch's existing picker model list. */
+    public static Object mergeGlobal(Object uiSet) {
+        if (!Settings.EMOTES_PICKER.get() || uiSet == null) {
+            return uiSet;
+        }
+
         try {
-            if (!Settings.EMOTES_PICKER.get()) return mtf;
-            List<Entry> entries = loadForChannel(currentChannelId);
+            List<Entry> entries = loadForChannel(EmoteSupport.getCurrentChannelId());
             if (entries.isEmpty()) {
-                return mtf;
+                return uiSet;
             }
 
-            ClassLoader cl = EmotePickerBridge.class.getClassLoader();
-            Method getEmotes = mtf.getClass().getMethod("b");
-            Method getHeader = mtf.getClass().getMethod("c");
-            Object existing = getEmotes.invoke(mtf);
-            Object header = getHeader.invoke(mtf);
-            if (!(existing instanceof List) || header == null) {
-                return mtf;
+            Method getEmotes = findNoArgMethod(uiSet.getClass(), "b", "getEmotes");
+            if (getEmotes == null) {
+                getEmotes = findListReturningGetter(uiSet.getClass());
+            }
+            if (getEmotes == null) {
+                throw new NoSuchMethodException("EmoteUiSet emote-list getter not found");
             }
 
-            List<Object> merged = new ArrayList<Object>((List<?>) existing);
+            Object raw = getEmotes.invoke(uiSet);
+            if (!(raw instanceof List)) {
+                return uiSet;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) raw;
+            Set<String> existingCodes = new HashSet<>();
+            for (Object item : list) {
+                extractCode(item, existingCodes);
+            }
+
+            ClassLoader cl = uiSet.getClass().getClassLoader();
             int added = 0;
             for (Entry entry : entries) {
-                Object uiModel = buildUiModel(cl, entry);
-                if (uiModel != null) {
-                    merged.add(uiModel);
+                if (existingCodes.contains(entry.code)) continue;
+                Object model = buildUiModel(cl, entry);
+                if (model != null) {
+                    list.add(model);
+                    existingCodes.add(entry.code);
                     added++;
                 }
             }
-            Log.d(TAG, "merged " + added + " of " + entries.size() + " global emotes");
-            if (added == 0) {
-                return mtf;
-            }
 
-            Class<?> zhoClass = Class.forName(ZHO, false, cl);
-            Constructor<?> ctor = mtf.getClass().getConstructor(zhoClass, List.class);
-            return ctor.newInstance(header, merged);
+            Log.d(TAG, "picker added " + added + "/" + entries.size());
+            return uiSet;
         } catch (Throwable t) {
             Log.e(TAG, "mergeGlobal failed", t);
-            return mtf;
+            return uiSet;
         }
     }
 
     private static List<Entry> loadForChannel(String channelId) {
         try {
             List<Emote> source = EmoteSupport.getAllForChannel(channelId);
-            if (source == null || source.isEmpty()) return Collections.emptyList();
-
-            List<Entry> out = new ArrayList<Entry>();
-            for (Emote item : source) {
-                Entry entry = toEntry(item);
-                if (entry != null) out.add(entry);
+            if (source == null || source.isEmpty()) {
+                return java.util.Collections.emptyList();
+            }
+            List<Entry> out = new ArrayList<>(source.size());
+            for (Emote value : source) {
+                if (value == null || value.name == null || value.name.isEmpty() ||
+                        value.url == null || value.url.isEmpty()) {
+                    continue;
+                }
+                out.add(new Entry(value.name, value.url, value.animated));
             }
             return out;
         } catch (Throwable t) {
             Log.e(TAG, "loadForChannel failed", t);
-            return Collections.emptyList();
+            return java.util.Collections.emptyList();
         }
     }
 
-    private static Entry toEntry(Object emote) {
-        if (!(emote instanceof Emote)) return null;
+    private static Object buildUiModel(ClassLoader cl, Entry entry) throws Exception {
+        Class<?> assetType = Class.forName(T_ASSET, false, cl);
+        Class<?> modelKind = Class.forName(T_KIND, false, cl);
+        Class<?> modelGeneric = Class.forName(T_MODEL_GENERIC, false, cl);
+        Class<?> messageInput = Class.forName(T_MESSAGE_INPUT, false, cl);
+        Class<?> clickedUnlocked = Class.forName(T_CLICKED_UNLOCKED, false, cl);
+        Class<?> uiModel = Class.forName(T_UI_MODEL, false, cl);
+        Class<?> imageDescriptor = Class.forName(T_IMAGE_DESCRIPTOR, false, cl);
+
+        Object asset = enumConstant(assetType, entry.animated ? "ANIMATED" : "STATIC");
+        Object kind = enumConstant(modelKind, "OTHER");
+
+        String syntheticId = "KIZU-" + Integer.toHexString(entry.code.hashCode()) + "-" +
+                Integer.toHexString(entry.url.hashCode());
+
+        Object emoteModel = newInstanceMatching(
+                modelGeneric, syntheticId, entry.code, asset, kind
+        );
+        Object input = newInstanceMatching(
+                messageInput, entry.code, syntheticId, false
+        );
+
+        Object clicked = newInstanceMatching(
+                clickedUnlocked,
+                emoteModel,
+                input,
+                null,
+                null,
+                12,
+                null
+        );
+
+        Context context = Utils.getContext();
+        int widthRes = context == null ? 0 :
+                context.getResources().getIdentifier("emote_picker_emote_size", "dimen",
+                        context.getPackageName());
+        int paddingRes = context == null ? 0 :
+                context.getResources().getIdentifier("emote_picker_emote_padding", "dimen",
+                        context.getPackageName());
+
+        Object descriptor = enumConstant(imageDescriptor, "NONE");
+        return newInstanceMatching(
+                uiModel,
+                syntheticId,
+                clicked,
+                asset,
+                descriptor,
+                widthRes,
+                paddingRes == 0 ? null : Integer.valueOf(paddingRes)
+        );
+    }
+
+    private static Method findNoArgMethod(Class<?> cls, String... names) {
+        for (String name : names) {
+            try {
+                Method m = cls.getMethod(name);
+                if (m.getParameterCount() == 0) return m;
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Method findListReturningGetter(Class<?> cls) {
+        for (Method method : cls.getMethods()) {
+            if (method.getParameterCount() == 0 &&
+                    List.class.isAssignableFrom(method.getReturnType())) {
+                return method;
+            }
+        }
+        return null;
+    }
+
+    private static void extractCode(Object uiModel, Set<String> out) {
+        if (uiModel == null) return;
         try {
-            Emote value = (Emote) emote;
-            if (value.name == null || value.name.isEmpty() ||
-                value.url == null || value.url.isEmpty()) return null;
-            return new Entry(value.name, value.url, value.animated);
-        } catch (Throwable t) {
-            Log.w(TAG, "toEntry failed", t);
-            return null;
+            Object clicked = findObjectField(uiModel, "clickedEmote", "b");
+            if (clicked == null) return;
+            Object input = findObjectField(clicked, "emoteMessageInput");
+            if (input == null) {
+                for (Method m : clicked.getClass().getMethods()) {
+                    if (m.getParameterCount() == 0 &&
+                            m.getReturnType().getName().endsWith("EmoteMessageInput")) {
+                        input = m.invoke(clicked);
+                        break;
+                    }
+                }
+            }
+            if (input == null) return;
+            Object code = findObjectField(input, "code");
+            if (code != null) out.add(String.valueOf(code));
+        } catch (Throwable ignored) {
         }
     }
 
-    private static Object buildUiModel(ClassLoader cl, Entry entry) {
-        try {
-            Class<?> xofClass = Class.forName(XOF, false, cl);
-            Class<?> zofClass = Class.forName(ZOF, false, cl);
-            Class<?> qofClass = Class.forName(QOF, false, cl);
-            Class<?> wofClass = Class.forName(WOF, false, cl);
-            Class<?> uofClass = Class.forName(UOF, false, cl);
-            Class<?> tofClass = Class.forName(TOF, false, cl);
-            Class<?> mb7Class = Class.forName(MB7, false, cl);
-            Class<?> r93Class = Class.forName(R93, false, cl);
-            Class<?> ltfClass = Class.forName(LTF, false, cl);
-
-            Object assetType = enumConstant(xofClass, entry.animated ? "ANIMATED" : "STATIC");
-            Object emoteKind = enumConstant(zofClass, "OTHER");
-            Object displayMode = enumConstant(qofClass, "NONE");
-
-            Object emote = newInstanceMatching(
-                    uofClass, entry.url, entry.code, assetType, emoteKind
-            );
-            Object input = newInstanceMatching(
-                    tofClass, entry.code, entry.url, false
-            );
-            Object unlocked = newInstanceMatching(mb7Class, emote, input);
-            return newInstanceMatching(
-                    ltfClass, entry.url, unlocked, assetType, displayMode
-            );
-        } catch (Throwable t) {
-            Log.w(TAG, "buildUiModel failed for " + entry.code, t);
-            return null;
+    private static Object findObjectField(Object owner, String... names) {
+        for (String name : names) {
+            try {
+                java.lang.reflect.Field field = owner.getClass().getDeclaredField(name);
+                field.setAccessible(true);
+                return field.get(owner);
+            } catch (Throwable ignored) {
+            }
         }
+        return null;
     }
 
-    private static Object newInstanceMatching(Class<?> cls, Object... args)
-            throws Exception {
-        for (Constructor<?> c : cls.getDeclaredConstructors()) {
-            Class<?>[] types = c.getParameterTypes();
+    private static Object newInstanceMatching(Class<?> cls, Object... args) throws Exception {
+        for (Constructor<?> constructor : cls.getDeclaredConstructors()) {
+            Class<?>[] types = constructor.getParameterTypes();
             if (types.length != args.length) continue;
 
             boolean compatible = true;
@@ -162,21 +236,22 @@ public final class EmotePickerBridge {
                     }
                     continue;
                 }
-                Class<?> expected = wrapPrimitive(types[i]);
-                if (!expected.isAssignableFrom(args[i].getClass())) {
+                if (!wrapPrimitive(types[i]).isAssignableFrom(args[i].getClass())) {
                     compatible = false;
                     break;
                 }
             }
             if (!compatible) continue;
-
-            c.setAccessible(true);
-            return c.newInstance(args);
+            constructor.setAccessible(true);
+            return constructor.newInstance(args);
         }
+        throw new NoSuchMethodException(cls.getName() + " has no compatible constructor");
+    }
 
-        throw new NoSuchMethodException(
-                cls.getName() + " has no compatible constructor"
-        );
+    private static Object enumConstant(Class<?> cls, String name) throws Exception {
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        Object value = Enum.valueOf((Class<? extends Enum>) cls, name);
+        return value;
     }
 
     private static Class<?> wrapPrimitive(Class<?> type) {
@@ -192,17 +267,12 @@ public final class EmotePickerBridge {
         return type;
     }
 
-    private static Object enumConstant(Class<?> enumClass, String name) throws Exception {
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        Object value = Enum.valueOf((Class<? extends Enum>) enumClass, name);
-        return value;
-    }
+    private static final class Entry {
+        final String code;
+        final String url;
+        final boolean animated;
 
-    public static final class Entry {
-        public final String code;
-        public final String url;
-        public final boolean animated;
-        public Entry(String code, String url, boolean animated) {
+        Entry(String code, String url, boolean animated) {
             this.code = code;
             this.url = url;
             this.animated = animated;
