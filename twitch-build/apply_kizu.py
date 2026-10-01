@@ -28,6 +28,7 @@ emote_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/
 emote_patch_dst.mkdir(parents=True, exist_ok=True)
 (emote_patch_dst / "Fingerprints.kt").write_text(Path("twitch-build/EmoteFingerprints.kt").read_text())
 (emote_patch_dst / "ThirdPartyEmotesPatch.kt").write_text(Path("twitch-build/ThirdPartyEmotesPatch.kt").read_text())
+(emote_patch_dst / "EmotePickerUrlPatch.kt").write_text(Path("twitch-build/EmotePickerUrlPatch.kt").read_text())
 
 privacy_patch_dst = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/privacy"
 privacy_patch_dst.mkdir(parents=True, exist_ok=True)
@@ -863,12 +864,13 @@ if "autoClaimChannelPointsPatch" not in _es:
     )
 if "thirdPartyEmotePickerPatch" not in _es:
     _es = _es.replace(
-        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n"
+        "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerUrlPatch\n",
         "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotePickerPatch\n"
         "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
     )
     _es = _es.replace(
-        "        thirdPartyEmotesPatch,\n",
+        "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerUrlPatch,\n",
         "        thirdPartyEmotesPatch,\n        thirdPartyEmotePickerPatch,\n",
     )
     _enh.write_text(_es)
