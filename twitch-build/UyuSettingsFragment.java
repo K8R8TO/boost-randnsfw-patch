@@ -11,7 +11,7 @@ import android.preference.SwitchPreference;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.NumberPicker;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 @SuppressWarnings("deprecation")
@@ -122,13 +122,13 @@ public class UyuSettingsFragment extends PreferenceFragment {
                 "Prefix chat messages with the message time.");
         addTimestampFormat(screen);
         addSwitch(screen, Settings.LANDSCAPE_CHAT_SIZE_ENABLED,
-                "Landscape chat size", "Apply the configurable landscape chat width.");
+                "Custom landscape chat width", "Use the width reduction below instead of Twitch's default.");
         addInt(screen, Settings.LANDSCAPE_CHAT_SIZE, "Landscape chat width reduction",
-                "Reduce the chat width in landscape by this percentage.");
+                "Reduce the chat width in landscape by this percentage. Applies the next time you open a stream.");
         addSwitch(screen, Settings.LANDSCAPE_CHAT_OPACITY_ENABLED,
-                "Landscape chat opacity", "Apply the configurable landscape chat opacity.");
-        addInt(screen, Settings.LANDSCAPE_CHAT_OPACITY, "Landscape chat opacity",
-                "Opacity percentage for the landscape chat panel.");
+                "Custom landscape chat opacity", "Use the opacity level below instead of Twitch's default.");
+        addInt(screen, Settings.LANDSCAPE_CHAT_OPACITY, "Landscape chat opacity level",
+                "0 = invisible, 100 = solid. Applies the next time you open a stream.");
         addSwitch(screen, Settings.HIDE_CHAT_BITS_BUTTON, "Hide Bits button",
                 "Hide the Bits button beside Twitch's chat controls.");
     }
@@ -213,23 +213,37 @@ public class UyuSettingsFragment extends PreferenceFragment {
                     : null;
             if (activity == null) return true;
 
+            final int pad = Math.round(
+                    20 * activity.getResources().getDisplayMetrics().density);
             LinearLayout container = new LinearLayout(activity);
-            container.setGravity(Gravity.CENTER);
-            container.setPadding(24, 0, 24, 0);
+            container.setOrientation(LinearLayout.VERTICAL);
+            container.setPadding(pad, pad, pad, 0);
 
-            NumberPicker picker = new NumberPicker(activity);
-            picker.setMinValue(setting.min);
-            picker.setMaxValue(setting.max);
-            picker.setValue(Math.max(setting.min,
-                    Math.min(setting.max, setting.get())));
-            picker.setWrapSelectorWheel(false);
-            container.addView(picker);
+            final TextView valueLabel = new TextView(activity);
+            valueLabel.setGravity(Gravity.CENTER);
+            valueLabel.setTextSize(20f);
+            container.addView(valueLabel);
+
+            final SeekBar bar = new SeekBar(activity);
+            bar.setMax(setting.max - setting.min);
+            final int startValue = Math.max(setting.min,
+                    Math.min(setting.max, setting.get()));
+            bar.setProgress(startValue - setting.min);
+            valueLabel.setText(String.valueOf(startValue));
+            bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    valueLabel.setText(String.valueOf(progress + setting.min));
+                }
+                @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+                @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+            });
+            container.addView(bar);
 
             new AlertDialog.Builder(activity)
                     .setTitle(title)
                     .setView(container)
                     .setPositiveButton("OK", (dialog, which) -> {
-                        setting.save(picker.getValue());
+                        setting.save(bar.getProgress() + setting.min);
                         updateIntSummary(preference, setting, description);
                     })
                     .setNegativeButton("Cancel", null)
