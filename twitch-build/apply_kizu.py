@@ -640,14 +640,8 @@ if "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }" not in s:
     s += "-keep class io.github.bakwudo.uyu.extension.settings.** { *; }\n"
 proguard.write_text(s)
 
-for relative in [
-    "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/separateapp",
-    "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/channelpoints",
-    "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/danmaku",
-]:
-    path = ROOT / relative
-    if path.exists():
-        shutil.rmtree(path)
+# Keep Uyu's tested channel-points and danmaku modules. Kizu exposes their
+# existing runtime settings in its own settings screen.
 
 p = settings_dst / "SettingsPatch.java"
 s = p.read_text().replace(
@@ -722,6 +716,21 @@ if "getAllForChannel" not in _ps:
 
 _enh = ROOT / "patches/src/main/kotlin/io/github/bakwudo/uyu/patches/twitch/enhancement/EnhancementPatch.kt"
 _es = _enh.read_text()
+
+# Re-enable the tested Uyu channel-points and danmaku patch modules.
+if "autoClaimChannelPointsPatch" not in _es:
+    _es = _es.replace(
+        "import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch\n",
+        "import io.github.bakwudo.uyu.patches.twitch.ads.blockAdsPatch\n"
+        "import io.github.bakwudo.uyu.patches.twitch.channelpoints.autoClaimChannelPointsPatch\n"
+        "import io.github.bakwudo.uyu.patches.twitch.danmaku.danmakuCommentsPatch\n",
+        1,
+    )
+    _es = _es.replace(
+        "        settingsPatch,\n",
+        "        settingsPatch,\n        autoClaimChannelPointsPatch,\n        danmakuCommentsPatch,\n",
+        1,
+    )
 if "thirdPartyEmotePickerPatch" not in _es:
     _es = _es.replace(
         "import io.github.bakwudo.uyu.patches.twitch.emotes.thirdPartyEmotesPatch\n",
