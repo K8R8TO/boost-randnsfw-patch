@@ -60,9 +60,6 @@ public final class PlayerSupport {
     }
 
     private static void install(View root) {
-        if (root.getResources().getConfiguration().orientation
-                != Configuration.ORIENTATION_LANDSCAPE) return;
-
         FrameLayout pane = findPlayerPane(root);
         if (pane == null) return;
 
@@ -76,6 +73,10 @@ public final class PlayerSupport {
             PlayerInstallation installation = new PlayerInstallation(pane);
             INSTALLATIONS.put(pane, installation);
             installation.attach();
+            pane.addOnLayoutChangeListener((v, l, t, r, b, oldL, oldT, oldR, oldB) -> {
+                PlayerInstallation current = INSTALLATIONS.get(pane);
+                if (current != null) current.update();
+            });
         } catch (Throwable ignored) {}
     }
 
@@ -175,8 +176,7 @@ public final class PlayerSupport {
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT
                             );
-                    int insertion = Math.min(1, pane.getChildCount());
-                    pane.addView(gestures, insertion, gestureParams);
+                    pane.addView(gestures, gestureParams);
 
                     controls.setOrientation(LinearLayout.HORIZONTAL);
                     controls.setPadding(dp(2), dp(2), dp(2), dp(2));
@@ -297,6 +297,8 @@ public final class PlayerSupport {
         int mode;
         boolean active;
         boolean seekDone;
+        boolean replaying;
+        MotionEvent downEvent;
         TextView osd;
         Runnable hideOsd;
 
@@ -312,8 +314,13 @@ public final class PlayerSupport {
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             try {
+                // While a tap is being replayed, or in portrait, let the views below handle touches.
+                if (replaying || getResources().getConfiguration().orientation
+                        != Configuration.ORIENTATION_LANDSCAPE) return false;
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
+                        if (downEvent != null) downEvent.recycle();
+                        downEvent = MotionEvent.obtain(event);
                         downX = event.getX();
                         downY = event.getY();
                         startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
@@ -349,6 +356,12 @@ public final class PlayerSupport {
                         return true;
 
                     case MotionEvent.ACTION_UP:
+                        if (!active && downEvent != null) replayTap(downEvent, event);
+                        active = false;
+                        mode = 0;
+                        seekDone = false;
+                        return true;
+
                     case MotionEvent.ACTION_CANCEL:
                         active = false;
                         mode = 0;
@@ -360,6 +373,22 @@ public final class PlayerSupport {
                 }
             } catch (Throwable ignored) {
                 return true;
+            }
+        }
+
+        /** A plain tap was swallowed by this layer; hand it to Twitch's own controls underneath. */
+        void replayTap(MotionEvent down, MotionEvent up) {
+            replaying = true;
+            try {
+                MotionEvent d = MotionEvent.obtain(down);
+                MotionEvent u = MotionEvent.obtain(up);
+                pane.dispatchTouchEvent(d);
+                pane.dispatchTouchEvent(u);
+                d.recycle();
+                u.recycle();
+            } catch (Throwable ignored) {
+            } finally {
+                replaying = false;
             }
         }
 
